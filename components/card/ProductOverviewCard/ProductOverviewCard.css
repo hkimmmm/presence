@@ -1,0 +1,6 @@
+.total-sales {
+  position: relative;
+  top: 4px; /* Naikkan sedikit agar sejajar dengan angka */
+  font-size: 0.875rem; /* Sesuaikan ukuran font */
+  color: #6b7280; /* Warna abu-abu */
+}
