@@ -5,6 +5,7 @@ const nextConfig: NextConfig = {
   images: {
     domains: [
       'flowbite.com', // Domain eksternal yang sudah ada
+      //192.168.230.198
       '192.168.18.9', // Tambahkan IP/domain server lokal Anda
       'localhost'     // Tambahkan localhost untuk development
     ],
