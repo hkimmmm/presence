@@ -26,6 +26,7 @@ function getTokenFromRequest(req: NextRequest): string | null {
   return authHeader.replace('Bearer ', '');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function verifyToken(token: string): any | null {
   try {
     return jwt.verify(token, JWT_SECRET);
@@ -50,6 +51,7 @@ function hitungJarak(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return earthRadius * c;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
@@ -105,6 +107,7 @@ export async function POST(req: NextRequest) {
 
     console.log('⏰ Server time (WIB):', datetimeCheckin);
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [existingPresensi]: any = await pool.query(
       `SELECT id FROM presensi WHERE karyawan_id = ? AND tanggal = ? AND checkout_time IS NULL LIMIT 1`,
       [karyawan_id, tanggalFormatted]
@@ -129,6 +132,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [kantorRows]: any = await pool.query('SELECT * FROM lokasi_kantor LIMIT 1');
       if (kantorRows.length === 0) {
         return new NextResponse(
@@ -162,6 +166,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result]: any = await pool.query(
       `INSERT INTO presensi (karyawan_id, tanggal, checkin_time, checkin_lat, checkin_lng, status, keterangan, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -175,6 +180,7 @@ export async function POST(req: NextRequest) {
       }),
       { status: 201, headers }
     );
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch ( error: any) {
     console.error('Check-in error:', error);
     return new NextResponse(

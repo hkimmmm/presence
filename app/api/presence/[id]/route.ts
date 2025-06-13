@@ -26,6 +26,7 @@ function getTokenFromRequest(req: NextRequest): string | null {
   return authHeader.replace('Bearer ', '');
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function verifyToken(token: string): any | null {
   try {
     return jwt.verify(token, JWT_SECRET);
@@ -50,6 +51,7 @@ function hitungJarak(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return earthRadius * c;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
@@ -92,6 +94,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [existingCheckoutRows]: any = await pool.query(
       `SELECT id FROM presensi WHERE id = ? AND checkout_time IS NOT NULL LIMIT 1`,
       [presensiId]
@@ -104,6 +107,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [kantorRows]: any = await pool.query('SELECT * FROM lokasi_kantor LIMIT 1');
 
     if (kantorRows.length === 0) {
@@ -127,6 +131,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       );
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [presensiExistRows]: any = await pool.query(
       `SELECT id FROM presensi WHERE id = ? LIMIT 1`,
       [presensiId]
@@ -142,6 +147,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     const keteranganCheckout = `Check-out QR Code - Lokasi: ${kantor.nama || 'Kantor'} (lat: ${checkout_lat}, lng: ${checkout_lng})`;
     const datetimeCheckout = new Date(checkout_time).toISOString().slice(0, 19).replace('T', ' ');
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result]: any = await pool.query(
       `UPDATE presensi 
        SET checkout_time = ?, checkout_lat = ?, checkout_lng = ?, keterangan = ?, updated_at = NOW() 
@@ -169,6 +175,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
   status: 200,
   headers,
 });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('❌ Failed to perform check-out:', error.message);
     return new NextResponse(

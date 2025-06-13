@@ -99,6 +99,7 @@ export async function POST(request: Request) {
     }
 
     // Hapus password sebelum kirim ke client
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _, ...userWithoutPassword } = user;
 
     // Generate JWT token

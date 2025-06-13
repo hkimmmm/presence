@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import pool from '@/app/utils/db';
 import { NextRequest, NextResponse } from 'next/server';
 import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
