@@ -13,6 +13,7 @@ import { PlusIcon, TrashIcon, FunnelIcon, MagnifyingGlassIcon, CheckIcon, XMarkI
 
 const EmployeeList: React.FC = () => {
   const [employees, setEmployees] = useState<Employee[]>([]);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const [originalEmployees, setOriginalEmployees] = useState<Employee[]>([]);
   const [search, setSearch] = useState<string>("");
   const [filter, setFilter] = useState<string>("all");
