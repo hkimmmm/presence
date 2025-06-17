@@ -7,45 +7,77 @@ type QRType = 'checkin' | 'checkout';
 
 export default function QRGeneratorPage() {
   const [qrData, setQrData] = useState<string>('');
-  const [timeLeft, setTimeLeft] = useState<number>(300); // 5 minutes
+  const [timeLeft, setTimeLeft] = useState<number>(300); // 5 menit
   const [isActive, setIsActive] = useState<boolean>(false);
   const [qrType, setQrType] = useState<QRType | ''>('');
   const [token, setToken] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null); // Tambahkan state untuk error
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
 
-  // Get token from localStorage on client side
+  // Ambil token dari localStorage
   useEffect(() => {
     setToken(localStorage.getItem('token'));
   }, []);
 
-  // Generate QR code
- async function generateQR(presensiId: number, type: 'checkin' | 'checkout') {
+  // Fungsi untuk mengambil presensiId aktif dari API (opsional)
+async function fetchActivePresensiId(): Promise<number> {
   try {
-    const res = await fetch('/api/generate-qr', {
-      method: 'POST',
+    const token = localStorage.getItem('token');
+    const res = await fetch('/api/presence', {
       headers: {
-        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
       },
-      body: JSON.stringify({
-        type,
-        presensiId,
-      }),
     });
-
     if (!res.ok) {
-      throw new Error('Failed to generate QR code');
+      throw new Error('Gagal mengambil presensi');
     }
-
-    const data = await res.json();
-    console.log('✅ QR Code generated:', data.qrCode);
-    return data.qrCode;
-  } catch (error) {
-    console.error('❌ Error:', error);
-    throw error;
+    const presensiList = await res.json();
+    // Cari presensi dengan checkout_time: null
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const activePresensi = presensiList.find((p: any) => p.checkout_time === null);
+    // if (!activePresensi) {
+    //   throw new Error('Tidak ada presensi aktif');
+    // }
+    return activePresensi.id; // Misalnya, 2
+  } catch (err) {
+    console.error('Error fetching presensiId:', err);
+    return 2; // Fallback untuk testing
   }
 }
 
+  // Generate QR code
+  async function generateQR(presensiId: number, type: 'checkin' | 'checkout') {
+    try {
+      setError(null); // Reset error sebelum request
+      console.log('Mengirim request:', { type, presensiId });
+      const res = await fetch('/api/generate-qr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }), // Tambahkan otorisasi jika diperlukan
+        },
+        body: JSON.stringify({
+          type,
+          presensiId: presensiId.toString(), // Konversi ke string untuk memastikan kompatibilitas
+        }),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(`Gagal membuat QR code: ${errorData.message}`);
+      }
+
+      const data = await res.json();
+      console.log('✅ QR Code generated:', data.qrCode);
+      return data.qrCode;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    } catch (error: any) {
+      console.error('❌ Error:', error);
+      setError(error.message); // Simpan pesan error untuk ditampilkan
+      throw error;
+    }
+  }
 
   // Download QR code
   const downloadQR = (): void => {
@@ -95,7 +127,7 @@ export default function QRGeneratorPage() {
     };
   }, [isActive, timeLeft]);
 
-  // Format time mm:ss
+  // Format waktu mm:ss
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
@@ -111,35 +143,55 @@ export default function QRGeneratorPage() {
       <div className="space-y-6">
         <div className="flex space-x-4">
           <button
-  onClick={() => {
-    if (!token) return;
-    generateQR(1, 'checkin').then((qr) => {
-      setQrData(qr);
-      setQrType('checkin');
-      setTimeLeft(300);
-      setIsActive(true);
-    });
-  }}
-  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
->
-  Generate Check-In QR
-</button>
+            onClick={async () => {
+              if (!token) {
+                setError('Silakan login terlebih dahulu');
+                return;
+              }
+              try {
+                const presensiId = await fetchActivePresensiId(); // Ambil presensiId aktif
+                const qr = await generateQR(presensiId, 'checkin');
+                setQrData(qr);
+                setQrType('checkin');
+                setTimeLeft(300);
+                setIsActive(true);
+              } catch (err) {
+                console.error('Error generating check-in QR:', err);
+              }
+            }}
+            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+          >
+            Generate Check-In QR
+          </button>
 
-<button
-  onClick={() => {
-    if (!token) return;
-    generateQR(1, 'checkout').then((qr) => {
-      setQrData(qr);
-      setQrType('checkout');
-      setTimeLeft(300);
-      setIsActive(true);
-    });
-  }}
-  className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
->
-  Generate Check-Out QR
-</button>
+          <button
+            onClick={async () => {
+              if (!token) {
+                setError('Silakan login terlebih dahulu');
+                return;
+              }
+              try {
+                const presensiId = await fetchActivePresensiId(); // Ambil presensiId aktif
+                const qr = await generateQR(presensiId, 'checkout');
+                setQrData(qr);
+                setQrType('checkout');
+                setTimeLeft(300);
+                setIsActive(true);
+              } catch (err) {
+                console.error('Error generating check-out QR:', err);
+              }
+            }}
+            className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
+          >
+            Generate Check-Out QR
+          </button>
         </div>
+
+        {error && (
+          <div className="mt-4 p-4 bg-red-100 text-red-700 rounded">
+            {error}
+          </div>
+        )}
 
         {qrData ? (
           <div className="mt-8 p-6 border border-gray-200 rounded-lg shadow-sm">
@@ -182,10 +234,10 @@ export default function QRGeneratorPage() {
         ) : (
           <div className="mt-8 p-12 border-2 border-dashed border-gray-300 rounded-lg text-center">
             <p className="text-gray-500">
-              {token ? 'No QR code generated yet' : 'Please login to generate QR codes'}
+              {token ? 'Belum ada QR code yang di-generate' : 'Silakan login untuk membuat QR code'}
             </p>
             <p className="text-sm text-gray-400 mt-2">
-              {token && 'Click one of the buttons above to generate a QR code'}
+              {token && 'Klik salah satu tombol di atas untuk membuat QR code'}
             </p>
           </div>
         )}

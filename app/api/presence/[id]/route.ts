@@ -83,17 +83,35 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
 
     const body = await req.json();
-    const { checkout_time, checkout_lat, checkout_lng } = body;
+    const { checkout_lat, checkout_lng } = body;
 
-    if (!checkout_time || checkout_lat == null || checkout_lng == null) {
+    if (checkout_lat == null || checkout_lng == null) {
       return new NextResponse(
         JSON.stringify({
-          message: 'checkout_time, checkout_lat, dan checkout_lng harus diisi',
+          message: 'checkout_lat dan checkout_lng harus diisi',
         }),
         { status: 400, headers }
       );
     }
 
+    // Generate WIB timestamp for checkout_time
+    const datetimeCheckout = new Date()
+      .toLocaleString('en-CA', {
+        timeZone: 'Asia/Jakarta',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false,
+      })
+      .replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2')
+      .replace(',', '');
+
+    console.log('⏰ Server checkout time (WIB):', datetimeCheckout);
+
+    // Check for existing checkout
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [existingCheckoutRows]: any = await pool.query(
       `SELECT id FROM presensi WHERE id = ? AND checkout_time IS NOT NULL LIMIT 1`,
@@ -107,6 +125,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       );
     }
 
+    // Check office location
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [kantorRows]: any = await pool.query('SELECT * FROM lokasi_kantor LIMIT 1');
 
@@ -131,6 +150,7 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       );
     }
 
+    // Check if presensi exists
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [presensiExistRows]: any = await pool.query(
       `SELECT id FROM presensi WHERE id = ? LIMIT 1`,
@@ -145,8 +165,8 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
     }
 
     const keteranganCheckout = `Check-out QR Code - Lokasi: ${kantor.nama || 'Kantor'} (lat: ${checkout_lat}, lng: ${checkout_lng})`;
-    const datetimeCheckout = new Date(checkout_time).toISOString().slice(0, 19).replace('T', ' ');
 
+    // Update presensi record
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result]: any = await pool.query(
       `UPDATE presensi 
@@ -162,19 +182,19 @@ export async function PATCH(req: NextRequest, context: { params: Promise<{ id: s
       });
     }
 
-   return new NextResponse(JSON.stringify({
-  message: 'Check-out berhasil',
-  presensi: {
-    id: presensiId,
-    checkout_time: datetimeCheckout,
-    checkout_lat,
-    checkout_lng,
-    status: 'hadir',
-  },
-}), {
-  status: 200,
-  headers,
-});
+    return new NextResponse(
+      JSON.stringify({
+        message: 'Check-out berhasil',
+        presensi: {
+          id: presensiId,
+          checkout_time: datetimeCheckout,
+          checkout_lat,
+          checkout_lng,
+          status: 'hadir',
+        },
+      }),
+      { status: 200, headers }
+    );
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   } catch (error: any) {
     console.error('❌ Failed to perform check-out:', error.message);
