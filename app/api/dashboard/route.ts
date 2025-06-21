@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 
 type JwtPayload = {
   nama?: string;
+  email?: string;
   username?: string;
   role?: string;
   foto_profile?: string;
@@ -45,6 +46,7 @@ export async function GET(request: Request) {
   return new NextResponse(
     JSON.stringify({
       nama: user.nama || user.username || null,
+      email: user.email || user.email || null,
       role: user.role || null,
       foto_profile: user.foto_profile || null,
     }),

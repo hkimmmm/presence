@@ -1,6 +1,6 @@
 import {
     HomeIcon,
-    CubeIcon,
+    DocumentTextIcon,
     CalendarIcon,
     UsersIcon,
     CogIcon,
@@ -16,10 +16,13 @@ import {
       icon: HomeIcon,
     },
     {
-      name: 'Products',
-      href: '/dashboard/products',
-      icon: CubeIcon,
-    },
+    name: 'Laporan',
+    icon: DocumentTextIcon,
+    subItems: [
+      { name: 'Laporan Cuti', href: '/dashboard/report/leave' },
+      { name: 'Laporan Presensi', href: '/dashboard/report/presence' },
+    ],
+  },
     {
       name: 'Employee',
       href: '/dashboard/employee',

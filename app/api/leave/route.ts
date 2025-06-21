@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
   const payload = token ? verifyToken(token) : null;
 
   if (!payload) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
+    return NextResponse.json({ message: 'Tidak diizinkan' }, { status: 401, headers: corsHeaders() });
   }
 
   const { karyawan_id } = payload;
@@ -160,33 +160,78 @@ export async function POST(request: NextRequest) {
 
     if (!validateLeaveRequest(data)) {
       return NextResponse.json(
-        { message: 'Invalid leave request data' },
+        { message: 'Data permintaan izin tidak valid' },
         { status: 400, headers: corsHeaders() }
       );
     }
 
     const fotoBuktiUrl = await handleFileUpload(data.foto_bukti || null);
 
-    const [result] = await pool.execute<ResultSetHeader>(
-      'INSERT INTO leave_requests (karyawan_id, jenis, tanggal_mulai, tanggal_selesai, keterangan, foto_bukti) VALUES (?, ?, ?, ?, ?, ?)',
-      [
-        data.karyawan_id,
-        data.jenis,
-        data.tanggal_mulai,
-        data.tanggal_selesai,
-        data.keterangan || null,
-        fotoBuktiUrl,
-      ]
-    );
+    // Mulai transaksi
+    await pool.query('START TRANSACTION');
 
-    return NextResponse.json(
-      { message: 'Leave request created successfully', id: result.insertId },
-      { status: 201, headers: corsHeaders() }
-    );
+    try {
+      // Insert ke tabel leave_requests
+      const [leaveResult] = await pool.execute<ResultSetHeader>(
+        'INSERT INTO leave_requests (karyawan_id, jenis, tanggal_mulai, tanggal_selesai, keterangan, foto_bukti) VALUES (?, ?, ?, ?, ?, ?)',
+        [
+          data.karyawan_id,
+          data.jenis,
+          data.tanggal_mulai,
+          data.tanggal_selesai,
+          data.keterangan || null,
+          fotoBuktiUrl,
+        ]
+      );
+
+      // Insert ke tabel presensi untuk setiap hari dalam rentang tanggal
+      const startDate = new Date(data.tanggal_mulai);
+      const endDate = new Date(data.tanggal_selesai);
+      const currentDate = new Date(startDate);
+
+      while (currentDate <= endDate) {
+        const tanggal = currentDate.toISOString().split('T')[0];
+        // Cek apakah sudah ada entri presensi untuk hari ini
+        const [existingPresensi]: any = await pool.query(
+          'SELECT id FROM presensi WHERE karyawan_id = ? AND tanggal = ?',
+          [data.karyawan_id, tanggal]
+        );
+        if (existingPresensi.length === 0) {
+          await pool.execute(
+            'INSERT INTO presensi (karyawan_id, tanggal, status, keterangan, checkin_time, checkout_time, checkin_lat, checkin_lng, checkout_lat, checkout_lng, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
+            [
+              data.karyawan_id,
+              tanggal,
+              data.jenis,
+              data.keterangan || null,
+              null,
+              null,
+              null,
+              null,
+              null,
+              null,
+            ]
+          );
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      // Commit transaksi
+      await pool.query('COMMIT');
+
+      return NextResponse.json(
+        { message: 'Permintaan izin dan presensi berhasil dicatat', id: leaveResult.insertId },
+        { status: 201, headers: corsHeaders() }
+      );
+    } catch (error) {
+      // Rollback transaksi jika terjadi error
+      await pool.query('ROLLBACK');
+      throw error;
+    }
   } catch (error) {
-    console.error('Error creating leave request:', error);
+    console.error('Error saat membuat permintaan izin atau presensi:', error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Error creating leave request' },
+      { message: error instanceof Error ? error.message : 'Error saat membuat permintaan izin atau presensi' },
       { status: 500, headers: corsHeaders() }
     );
   }
