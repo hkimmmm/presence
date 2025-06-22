@@ -26,7 +26,12 @@ import {
       icon: BriefcaseIcon,
     },
     {
-      name: 'Data Pengajuan Cuti',
+      name: 'Daftar Keahadiran',
+      href: '/dashboard/presence',
+      icon: UsersIcon,
+    },
+    {
+      name: 'Daftar Pengajuan Cuti',
       href: '/dashboard/leave_requests',
       icon: CalendarIcon,
     },
@@ -34,11 +39,6 @@ import {
       name: 'QR Code Generator',
       href: '/dashboard/qrcode',
       icon: QrCodeIcon,
-    },
-    {
-      name: 'Customers',
-      href: '/dashboard/customers',
-      icon: UsersIcon,
     },
     {
       name: 'Settings',
