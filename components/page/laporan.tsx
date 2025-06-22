@@ -2,6 +2,21 @@
 
 import { useEffect, useState } from 'react';
 
+const monthNames = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
 type AbsensiItem = {
   tanggal: string;
   status: string;
@@ -32,7 +47,6 @@ export default function LaporanAbsensi() {
   const [tahun, setTahun] = useState<number>(new Date().getFullYear());
   const [scope, setScope] = useState<'single' | 'all'>('single');
 
-  // Ambil daftar karyawan
   useEffect(() => {
     async function fetchKaryawan() {
       try {
@@ -48,7 +62,6 @@ export default function LaporanAbsensi() {
     fetchKaryawan();
   }, []);
 
-  // Ambil laporan absensi
   useEffect(() => {
     if (scope === 'single' && !selectedKaryawan) return;
 
@@ -78,7 +91,6 @@ export default function LaporanAbsensi() {
     fetchLaporan();
   }, [selectedKaryawan, bulan, tahun, scope]);
 
-  // Fungsi untuk unduh laporan
   const downloadReport = async (format: 'pdf' | 'excel') => {
     try {
       const url =
@@ -93,7 +105,7 @@ export default function LaporanAbsensi() {
       const downloadUrl = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = downloadUrl;
-      a.download = `report_${bulan}_${tahun}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      a.download = `report_${monthNames[bulan - 1]}_${tahun}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -105,204 +117,269 @@ export default function LaporanAbsensi() {
   };
 
   return (
-    <div className="space-y-4 p-6">
-      {/* Header Filter */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-semibold">Laporan Absensi</h1>
-        <div className="flex flex-wrap items-center gap-2">
-          {/* Pilih Scope */}
-          <label className="text-sm">Laporan:</label>
-          <select
-            className="border rounded px-2 py-1"
-            value={scope}
-            onChange={(e) => setScope(e.target.value as 'single' | 'all')}
-          >
-            <option value="single">Satu Karyawan</option>
-            <option value="all">Semua Karyawan</option>
-          </select>
+    <div className="container mx-auto p-4 lg:p-6">
+      {/* Header */}
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Laporan Absensi</h1>
+        <p className="text-gray-600">Laporan kehadiran karyawan bulan {monthNames[bulan - 1]} {tahun}</p>
+      </div>
 
-          {/* Dropdown Karyawan (hanya untuk single) */}
+      {/* Filter Section */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Scope Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Laporan</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={scope}
+              onChange={(e) => setScope(e.target.value as 'single' | 'all')}
+            >
+              <option value="single">Per Karyawan</option>
+              <option value="all">Semua Karyawan</option>
+            </select>
+          </div>
+
+          {/* Employee Selector (only for single) */}
           {scope === 'single' && (
-            <>
-              <label className="text-sm">Pilih Karyawan:</label>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Karyawan</label>
               <select
-                className="border rounded px-2 py-1"
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 value={selectedKaryawan || ''}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   setSelectedKaryawan(isNaN(val) ? null : val);
                 }}
               >
-                <option value="">-- Pilih --</option>
+                <option value="">-- Pilih Karyawan --</option>
                 {karyawanList.map((k) => (
                   <option key={k.id} value={k.id}>
                     {k.nama}
                   </option>
                 ))}
               </select>
-            </>
+            </div>
           )}
 
-          {/* Dropdown Bulan */}
-          <label className="text-sm">Bulan:</label>
-          <select
-            className="border rounded px-2 py-1"
-            value={bulan}
-            onChange={(e) => setBulan(parseInt(e.target.value))}
-          >
-            {Array.from({ length: 12 }, (_, i) => i + 1).map((bln) => (
-              <option key={bln} value={bln}>
-                {bln}
-              </option>
-            ))}
-          </select>
+          {/* Month Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bulan</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={bulan}
+              onChange={(e) => setBulan(parseInt(e.target.value))}
+            >
+              {monthNames.map((name, index) => (
+                <option key={index + 1} value={index + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
 
-          {/* Dropdown Tahun */}
-          <label className="text-sm">Tahun:</label>
-          <select
-            className="border rounded px-2 py-1"
-            value={tahun}
-            onChange={(e) => setTahun(parseInt(e.target.value))}
+          {/* Year Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={tahun}
+              onChange={(e) => setTahun(parseInt(e.target.value))}
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((thn) => (
+                <option key={thn} value={thn}>
+                  {thn}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Download Buttons */}
+        <div className="flex flex-wrap gap-3 mt-4">
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+            onClick={() => downloadReport('pdf')}
+            disabled={scope === 'single' && !selectedKaryawan}
           >
-            {[2023, 2024, 2025, 2026].map((thn) => (
-              <option key={thn} value={thn}>
-                {thn}
-              </option>
-            ))}
-          </select>
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Unduh PDF
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+            onClick={() => downloadReport('excel')}
+            disabled={scope === 'single' && !selectedKaryawan}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+            </svg>
+            Unduh Excel
+          </button>
         </div>
       </div>
 
-      {/* Tombol Unduh */}
-      <div className="flex gap-2">
-        <button
-          className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400"
-          onClick={() => downloadReport('pdf')}
-          disabled={scope === 'single' && !selectedKaryawan}
-        >
-          Unduh PDF
-        </button>
-        <button
-          className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 disabled:bg-gray-400"
-          onClick={() => downloadReport('excel')}
-          disabled={scope === 'single' && !selectedKaryawan}
-        >
-          Unduh Excel
-        </button>
-      </div>
-
-      {/* Error handling */}
-      {error && <div className="text-red-600 text-sm">{error}</div>}
-
-      {/* Loading */}
-      {loading && <div>Memuat data laporan...</div>}
-
-      {/* Tidak ada data */}
-      {!loading && scope === 'single' && selectedKaryawan && !data && !error && (
-        <div>Data tidak ditemukan untuk karyawan ini.</div>
+      {/* Status Messages */}
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+          <p>{error}</p>
+        </div>
       )}
 
-      {/* Ringkasan & Tabel */}
+      {loading && (
+        <div className="flex justify-center items-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+
+      {!loading && scope === 'single' && selectedKaryawan && !data && !error && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
+          <p>Data tidak ditemukan untuk karyawan ini.</p>
+        </div>
+      )}
+
+      {/* Report Content */}
       {data && (
-        <>
+        <div className="space-y-6">
+          {/* Single Employee Report */}
           {scope === 'single' && !Array.isArray(data) && (
             <>
-              {/* Ringkasan */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="bg-green-100 p-4 rounded shadow">
-                  <p className="text-gray-700">Total Hadir</p>
-                  <h3 className="text-xl font-bold text-green-700">{data.total_hadir} Hari</h3>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Hadir</h3>
+                  <p className="text-2xl font-semibold text-green-600">{data.total_hadir} Hari</p>
                 </div>
-                <div className="bg-yellow-100 p-4 rounded shadow">
-                  <p className="text-gray-700">Jumlah Izin</p>
-                  <h3 className="text-xl font-bold text-yellow-700">{data.total_izin} Hari</h3>
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Izin</h3>
+                  <p className="text-2xl font-semibold text-yellow-600">{data.total_izin} Hari</p>
                 </div>
-                <div className="bg-red-100 p-4 rounded shadow">
-                  <p className="text-gray-700">Jumlah Sakit</p>
-                  <h3 className="text-xl font-bold text-red-700">{data.total_sakit} Hari</h3>
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Sakit</h3>
+                  <p className="text-2xl font-semibold text-red-600">{data.total_sakit} Hari</p>
                 </div>
               </div>
 
-              {/* Tabel Detail */}
-              <div className="overflow-x-auto">
-                <table className="min-w-full bg-white shadow rounded-lg">
-                  <thead className="bg-gray-100 text-gray-700">
-                    <tr>
-                      <th className="py-2 px-4 text-left">Tanggal</th>
-                      <th className="py-2 px-4 text-left">Status</th>
-                      <th className="py-2 px-4 text-left">Keterangan</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.detail.map((item, i) => (
-                      <tr key={i} className="border-t">
-                        <td className="py-2 px-4">{item.tanggal}</td>
-                        <td
-                          className={`py-2 px-4 font-semibold ${
-                            item.status === 'hadir'
-                              ? 'text-green-600'
-                              : item.status === 'sakit'
-                              ? 'text-red-600'
-                              : 'text-yellow-600'
-                          }`}
-                        >
-                          {item.status}
-                        </td>
-                        <td className="py-2 px-4">{item.keterangan}</td>
+              {/* Detail Table */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tanggal
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Keterangan
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {data.detail.map((item, i) => (
+                        <tr key={i}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {item.tanggal}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <span className={`px-2 py-1 rounded-full text-xs ${
+                              item.status === 'hadir'
+                                ? 'bg-green-100 text-green-800'
+                                : item.status === 'sakit'
+                                ? 'bg-red-100 text-red-800'
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 truncate max-w-xs">
+                              {item.keterangan}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </>
           )}
 
+          {/* All Employees Report */}
           {scope === 'all' && Array.isArray(data) && (
-            <>
+            <div className="space-y-6">
               {data.map((report, index) => (
-                <div key={index} className="mt-6">
-                  <h2 className="text-lg font-semibold">
-                    Karyawan: {report.karyawan_nama || `ID ${report.karyawan_id}`}
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-2">
-                    <div className="bg-green-100 p-4 rounded shadow">
-                      <p className="text-gray-700">Total Hadir</p>
-                      <h3 className="text-xl font-bold text-green-700">{report.total_hadir} Hari</h3>
+                <div key={index} className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      {report.karyawan_nama || `Karyawan ID: ${report.karyawan_id}`}
+                    </h2>
+                  </div>
+                  
+                  {/* Summary for each employee */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Hadir</h3>
+                      <p className="text-xl font-semibold text-green-600">{report.total_hadir} Hari</p>
                     </div>
-                    <div className="bg-yellow-100 p-4 rounded shadow">
-                      <p className="text-gray-700">Jumlah Izin</p>
-                      <h3 className="text-xl font-bold text-yellow-700">{report.total_izin} Hari</h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Izin</h3>
+                      <p className="text-xl font-semibold text-yellow-600">{report.total_izin} Hari</p>
                     </div>
-                    <div className="bg-red-100 p-4 rounded shadow">
-                      <p className="text-gray-700">Jumlah Sakit</p>
-                      <h3 className="text-xl font-bold text-red-700">{report.total_sakit} Hari</h3>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Sakit</h3>
+                      <p className="text-xl font-semibold text-red-600">{report.total_sakit} Hari</p>
                     </div>
                   </div>
-                  <div className="overflow-x-auto mt-2">
-                    <table className="min-w-full bg-white shadow rounded-lg">
-                      <thead className="bg-gray-100 text-gray-700">
+
+                  {/* Detail table for each employee */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
                         <tr>
-                          <th className="py-2 px-4 text-left">Tanggal</th>
-                          <th className="py-2 px-4 text-left">Status</th>
-                          <th className="py-2 px-4 text-left">Keterangan</th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tanggal
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Keterangan
+                          </th>
                         </tr>
                       </thead>
-                      <tbody>
+                      <tbody className="bg-white divide-y divide-gray-200">
                         {report.detail.map((item, i) => (
-                          <tr key={i} className="border-t">
-                            <td className="py-2 px-4">{item.tanggal}</td>
-                            <td
-                              className={`py-2 px-4 font-semibold ${
-                                item.status === 'hadir'
-                                  ? 'text-green-600'
-                                  : item.status === 'sakit'
-                                  ? 'text-red-600'
-                                  : 'text-yellow-600'
-                              }`}
-                            >
-                              {item.status}
+                          <tr key={i}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {item.tanggal}
                             </td>
-                            <td className="py-2 px-4">{item.keterangan}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <span className={`px-2 py-1 rounded-full text-xs ${
+                                item.status === 'hadir'
+                                  ? 'bg-green-100 text-green-800'
+                                  : item.status === 'sakit'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}>
+                                {item.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {item.keterangan}
+                            </td>
                           </tr>
                         ))}
                       </tbody>
@@ -310,9 +387,9 @@ export default function LaporanAbsensi() {
                   </div>
                 </div>
               ))}
-            </>
+            </div>
           )}
-        </>
+        </div>
       )}
     </div>
   );

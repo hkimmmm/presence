@@ -5,6 +5,15 @@ import { useSidebar } from '@/context/SidebarContext';
 import { useEffect, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
+import { jwtDecode } from 'jwt-decode';
+
+// Definisikan tipe untuk payload token JWT
+interface TokenPayload {
+  username: string;
+  role: string;
+  foto_profile: string;
+}
 
 // Definisikan tipe untuk user
 interface User {
@@ -15,13 +24,35 @@ interface User {
 
 export default function Sidebar() {
   const { isSidebarOpen, closeSidebar } = useSidebar();
-  const [openSubMenu, setOpenSubMenu] = useState<string | null>(null); // State untuk submenu dengan tipe string|null
+  const [user, setUser] = useState<User | null>(null);
+  const router = useRouter();
+
+  // Ambil data user dari token saat komponen dimuat
+  useEffect(() => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        const decoded: TokenPayload = jwtDecode(token);
+        setUser({
+          image: decoded.foto_profile || '/images/default-profile.jpg',
+          name: decoded.username,
+          role: decoded.role,
+        });
+      } catch (error) {
+        console.error('Error decoding token:', error);
+        localStorage.removeItem('token');
+        router.push('/login');
+      }
+    } else {
+      router.push('/login');
+    }
+  }, [router]);
 
   // Atur sidebar agar menutup otomatis saat di mobile
   useEffect(() => {
     const handleResize = () => {
       if (window.innerWidth < 768) {
-        closeSidebar(); // Tutup otomatis di mobile/tablet
+        closeSidebar();
       }
     };
 
@@ -29,25 +60,15 @@ export default function Sidebar() {
     return () => window.removeEventListener('resize', handleResize);
   }, [closeSidebar]);
 
-  // Dummy user data (replace with actual authentication data)
-  const user: User = {
-    image: '/default-profile.jpg', // Replace with dynamic image URL
-    name: 'John Doe',
-    role: 'Admin',
-  };
-
+  // Fungsi logout
   const handleLogout = () => {
-    // Add logout logic here (e.g., clear session, redirect to login)
-    console.log('Logout clicked');
-    // Example: router.push('/login');
+    localStorage.removeItem('token');
+    localStorage.removeItem('user');
+    router.push('/login');
   };
 
-  // Fungsi untuk menangani klik submenu dan menutup sidebar jika di layar kecil
-  const handleSubMenuClick = () => {
-    if (window.innerWidth < 768) {
-      closeSidebar();
-    }
-  };
+  // Tampilkan loading jika data user belum tersedia
+  if (!user) return <div>Loading...</div>;
 
   return (
     <aside
@@ -70,49 +91,14 @@ export default function Sidebar() {
         <ul className="space-y-2">
           {sidebarItems.map((item) => (
             <li key={item.name}>
-              {item.subItems ? (
-                <div>
-                  <button
-                    onClick={() => {
-                      setOpenSubMenu(openSubMenu === item.name ? null : item.name);
-                      handleSubMenuClick(); // Panggil fungsi untuk menutup sidebar
-                    }}
-                    className="flex items-center gap-2 p-2 rounded hover:bg-blue-200 w-full text-left"
-                  >
-                    <item.icon className="h-5 w-5 text-gray-600" />
-                    {item.name}
-                    <span className="ml-auto">
-                      {openSubMenu === item.name ? '▲' : '▼'}
-                    </span>
-                  </button>
-                  {openSubMenu === item.name && (
-                    <ul className="pl-6 space-y-1 mt-1">
-                      {item.subItems.map((subItem) => (
-                        <li key={subItem.name}>
-                          <Link
-                            href={subItem.href}
-                            onClick={() => {
-                              if (window.innerWidth < 768) closeSidebar();
-                            }}
-                            className="block p-2 rounded hover:bg-blue-100 text-sm"
-                          >
-                            {subItem.name}
-                          </Link>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              ) : (
-                <Link
-                  href={item.href}
-                  onClick={() => window.innerWidth < 768 && closeSidebar()}
-                  className="flex items-center gap-2 p-2 rounded hover:bg-blue-200"
-                >
-                  <item.icon className="h-5 w-5 text-gray-600" />
-                  {item.name}
-                </Link>
-              )}
+              <Link
+                href={item.href}
+                onClick={() => window.innerWidth < 768 && closeSidebar()}
+                className="flex items-center gap-2 p-2 rounded hover:bg-blue-200"
+              >
+                <item.icon className="h-5 w-5 text-gray-600" />
+                {item.name}
+              </Link>
             </li>
           ))}
         </ul>

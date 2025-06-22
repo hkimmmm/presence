@@ -8,6 +8,22 @@ import pool from '@/app/utils/db';
 import fs from 'fs';
 import path from 'path';
 
+// Array untuk mapping bulan ke nama bulan dalam bahasa Indonesia
+const monthNames = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const karyawan_id = parseInt(searchParams.get('karyawan_id') || '0');
@@ -27,12 +43,18 @@ export async function GET(req: NextRequest) {
     const reportData: any[] = [];
     let karyawanList: { id: number; nama: string }[] = [];
 
-    // Ambil daftar karyawan jika scope = all
+    // Ambil daftar karyawan
     if (scope === 'all') {
       const [karyawanRows] = await pool.query('SELECT id, nama FROM karyawan');
       karyawanList = karyawanRows as { id: number; nama: string }[];
     } else {
-      karyawanList = [{ id: karyawan_id, nama: '' }];
+      // Untuk scope = single, ambil nama karyawan berdasarkan karyawan_id
+      const [karyawanRows] = await pool.query('SELECT id, nama FROM karyawan WHERE id = ?', [karyawan_id]);
+      const karyawan = (karyawanRows as { id: number; nama: string }[])[0];
+      if (!karyawan) {
+        return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 404 });
+      }
+      karyawanList = [{ id: karyawan.id, nama: karyawan.nama }];
     }
 
     // Loop untuk setiap karyawan
@@ -71,7 +93,7 @@ export async function GET(req: NextRequest) {
           izinExpanded.push({
             tanggal,
             status: item.jenis,
-            keterangan: item.keterangan
+            keterangan: item.keterangan,
           });
         }
       }
@@ -83,11 +105,9 @@ export async function GET(req: NextRequest) {
       });
       (presensiRows as any[]).forEach((row) => {
         byTanggal[row.tanggal] = {
-          tanggal: row.tanggal instanceof Date
-            ? row.tanggal.toISOString().split('T')[0]
-            : row.tanggal,
+          tanggal: row.tanggal instanceof Date ? row.tanggal.toISOString().split('T')[0] : row.tanggal,
           status: row.status,
-          keterangan: row.keterangan
+          keterangan: row.keterangan,
         };
       });
 
@@ -107,7 +127,7 @@ export async function GET(req: NextRequest) {
         total_hadir,
         total_sakit,
         total_izin,
-        detail
+        detail,
       });
     }
 
@@ -131,9 +151,9 @@ export async function GET(req: NextRequest) {
         worksheet.addRow({
           karyawan_id: report.karyawan_id,
           karyawan_nama: report.karyawan_nama,
-          tanggal: `Total Bulan ${bulan}/${tahun}`,
+          tanggal: `Total Bulan ${monthNames[bulan - 1]}/${tahun}`,
           status: '',
-          keterangan: `Hadir: ${report.total_hadir}, Sakit: ${report.total_sakit}, Izin: ${report.total_izin}`
+          keterangan: `Hadir: ${report.total_hadir}, Sakit: ${report.total_sakit}, Izin: ${report.total_izin}`,
         });
         worksheet.addRow({}); // Baris kosong
 
@@ -144,7 +164,7 @@ export async function GET(req: NextRequest) {
             karyawan_nama: report.karyawan_nama,
             tanggal: item.tanggal,
             status: item.status,
-            keterangan: item.keterangan
+            keterangan: item.keterangan,
           });
         });
 
@@ -164,7 +184,7 @@ export async function GET(req: NextRequest) {
               row.fill = {
                 type: 'pattern',
                 pattern: 'solid',
-                fgColor: { argb: 'FFCCCCCC' }
+                fgColor: { argb: 'FFCCCCCC' },
               };
             }
           });
@@ -178,8 +198,8 @@ export async function GET(req: NextRequest) {
         status: 200,
         headers: {
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename=report_${bulan}_${tahun}.xlsx`
-        }
+          'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.xlsx`,
+        },
       });
     } else if (format === 'pdf') {
       // Tentukan path absolut ke font menggunakan path.resolve
@@ -188,32 +208,32 @@ export async function GET(req: NextRequest) {
       console.log('Checking font path:', fontPath);
 
       // Pastikan file font ada
-    if (!fs.existsSync(fontPath)) {
-  return NextResponse.json({ error: 'Font file tidak ditemukan' }, { status: 500 });
-}
+      if (!fs.existsSync(fontPath)) {
+        return NextResponse.json({ error: 'Font file tidak ditemukan' }, { status: 500 });
+      }
 
       const doc = new PDFDocument({
-  margin: 30,
-  font: fontPath, // Gunakan font khusus
-  info: {
-    Title: 'Laporan Absensi',
-  }
-});
-const buffers: Buffer[] = [];
+        margin: 30,
+        font: fontPath,
+        info: {
+          Title: 'Laporan Absensi',
+        },
+      });
+      const buffers: Buffer[] = [];
 
       doc.on('data', buffers.push.bind(buffers));
 
       // Gunakan font khusus
       try {
-  doc.registerFont('Merriweather', fontPath);
-  doc.font('Merriweather'); // ✅ SET FONT SEBELUM .text
-} catch (fontError) {
-  console.error('Gagal memuat font Merriweather:', fontError);
-  doc.font('Helvetica'); // fallback
-}
+        doc.registerFont('Merriweather', fontPath);
+        doc.font('Merriweather');
+      } catch (fontError) {
+        console.error('Gagal memuat font Merriweather:', fontError);
+        doc.font('Helvetica'); // fallback
+      }
 
       // Tata letak PDF
-      doc.fontSize(20).text(`Laporan Absensi Bulan ${bulan}/${tahun}`, { align: 'center' });
+      doc.fontSize(20).text(`Laporan Absensi Bulan ${monthNames[bulan - 1]}/${tahun}`, { align: 'center' });
       doc.moveDown();
 
       reportData.forEach((report, index) => {
@@ -229,7 +249,9 @@ const buffers: Buffer[] = [];
         // Tabel header
         doc.fontSize(10);
         const tableTop = doc.y;
-        const col1 = 50, col2 = 150, col3 = 250;
+        const col1 = 50,
+          col2 = 150,
+          col3 = 250;
         doc.text('Tanggal', col1, tableTop);
         doc.text('Status', col2, tableTop);
         doc.text('Keterangan', col3, tableTop);
@@ -250,13 +272,15 @@ const buffers: Buffer[] = [];
       return new Promise<NextResponse>((resolve) => {
         doc.on('end', () => {
           const pdfBuffer = Buffer.concat(buffers);
-          resolve(new NextResponse(pdfBuffer, {
-            status: 200,
-            headers: {
-              'Content-Type': 'application/pdf',
-              'Content-Disposition': `attachment; filename=report_${bulan}_${tahun}.pdf`
-            }
-          }));
+          resolve(
+            new NextResponse(pdfBuffer, {
+              status: 200,
+              headers: {
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+              },
+            })
+          );
         });
       });
     }

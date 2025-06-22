@@ -17,19 +17,16 @@ import {
     },
     {
     name: 'Laporan',
-    icon: DocumentTextIcon,
-    subItems: [
-      { name: 'Laporan Cuti', href: '/dashboard/report/leave' },
-      { name: 'Laporan Presensi', href: '/dashboard/report/presence' },
-    ],
+    href: '/dashboard/laporan',
+    icon: DocumentTextIcon,   
   },
     {
-      name: 'Employee',
+      name: 'Data Sales',
       href: '/dashboard/employee',
       icon: BriefcaseIcon,
     },
     {
-      name: 'Leave Request',
+      name: 'Data Pengajuan Cuti',
       href: '/dashboard/leave_requests',
       icon: CalendarIcon,
     },
