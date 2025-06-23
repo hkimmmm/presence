@@ -256,12 +256,12 @@ export default function QRGeneratorPage() {
         {isAdmin && (
           <>
             <div>
-              <label className="flex items-center">
+              <label className="flex text-black items-center">
                 <input
                   type="checkbox"
                   checked={isMassQR}
                   onChange={(e) => setIsMassQR(e.target.checked)}
-                  className="mr-2"
+                  className="mr-2" 
                 />
                 Buat QR Code Massal
               </label>
@@ -275,7 +275,7 @@ export default function QRGeneratorPage() {
                   id="karyawan"
                   value={selectedKaryawanId || ''}
                   onChange={(e) => setSelectedKaryawanId(Number(e.target.value) || null)}
-                  className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2"
+                  className="mt-1 block w-full border border-gray-300 text-black rounded-md shadow-sm p-2"
                 >
                   <option value="">Pilih karyawan</option>
                   {karyawanList.map((karyawan) => (

@@ -77,8 +77,8 @@ export default function Sidebar() {
         md:translate-x-0`}
     >
       {/* Header Sidebar */}
-      <div className="flex justify-between items-center p-4 border-b mt-3">
-        <h2 className="text-xl font-bold">Menu</h2>
+      <div className="flex justify-between items-center teks-black p-4 border-b mt-3">
+        <h2 className="text-xl text-black font-bold">Menu</h2>
         {/* XMark untuk Mobile */}
         <XMarkIcon
           className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"
@@ -88,7 +88,7 @@ export default function Sidebar() {
 
       {/* Isi Sidebar */}
       <nav className="p-4">
-        <ul className="space-y-2">
+        <ul className="space-y-2 text-black">
           {sidebarItems.map((item) => (
             <li key={item.name}>
               <Link
@@ -115,7 +115,7 @@ export default function Sidebar() {
             className="rounded-full object-cover"
           />
           <div>
-            <p className="text-sm font-medium">{user.name}</p>
+            <p className="text-sm text-black font-medium">{user.name}</p>
             <p className="text-xs text-gray-500">{user.role}</p>
           </div>
         </div>

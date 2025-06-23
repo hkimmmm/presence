@@ -53,7 +53,7 @@ const Table: React.FC<TableProps> = ({ columns, data, onSelectionChange }) => {
         </tr>
       </thead>
   
-      <tbody className="text-sm">
+      <tbody className="text-sm text-black">
         {data.map((row, rowIndex) => (
           <tr
             key={rowIndex}

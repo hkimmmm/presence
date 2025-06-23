@@ -63,7 +63,7 @@ export default function LoginForm() {
           value={form.email}
           onChange={handleChange}
           required
-          className="p-2 border rounded-lg focus:ring focus:ring-blue-300"
+          className="p-2 border rounded-lg focus:ring text-black focus:ring-blue-300"
           placeholder="Masukkan email"
         />
       </div>
@@ -80,7 +80,7 @@ export default function LoginForm() {
             value={form.password}
             onChange={handleChange}
             required
-            className="p-2 border rounded-lg focus:ring focus:ring-blue-300 w-full pr-10"
+            className="p-2 border rounded-lg focus:ring text-black focus:ring-blue-300 w-full pr-10"
             placeholder="Masukkan password"
           />
           <button

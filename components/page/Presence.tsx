@@ -327,7 +327,7 @@ export default function PresencePage() {
   return (
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <h1 className="text-2xl font-bold text-gray-800">Daftar Presensi</h1>
+        <h1 className="text-2xl font-bold text-black">Daftar Presensi</h1>
         
         <div className="flex items-center gap-4">
           {/* Delete Button */}
@@ -376,7 +376,7 @@ export default function PresencePage() {
               className="flex items-center gap-2 bg-white shadow-md rounded-md border border-gray-200 px-3 py-2"
             >
               <FunnelIcon className="w-5 h-5 text-gray-600" />
-              <span>Filter</span>
+              <span className='text-black'>Filter</span>
             </button>
             
             {isFilterOpen && (

@@ -5,7 +5,7 @@ import ProductRevenueCard from "@/components/card/ProductRevenueCard/ProductReve
 export default function DashboardPage() {
   return (
     <>
-      <h1 className="text-3xl font-bold">Dashboard</h1>
+      <h1 className="text-3xl text-black font-bold">Dashboard</h1>
       <p className="mt-1 text-gray-600">
         Track your sales and performance of your energy
       </p>

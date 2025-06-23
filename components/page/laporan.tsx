@@ -116,8 +116,66 @@ export default function LaporanAbsensi() {
     }
   };
 
+  const printReport = () => {
+    try {
+      const url =
+        scope === 'single'
+          ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`
+          : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`;
+
+      // Buat iframe sementara untuk merender PDF
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none'; // Sembunyikan iframe
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      // Fungsi untuk membersihkan iframe
+      const cleanupIframe = () => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      };
+
+      // Tambahkan event afterprint untuk menghapus iframe setelah pencetakan selesai
+      const onAfterPrint = () => {
+        cleanupIframe();
+        window.removeEventListener('afterprint', onAfterPrint);
+      };
+      window.addEventListener('afterprint', onAfterPrint);
+
+      // Tunggu PDF dimuat, lalu panggil print
+      iframe.onload = () => {
+        try {
+          // Tambahkan penundaan untuk memastikan PDF dirender sepenuhnya
+          setTimeout(() => {
+            if (iframe.contentWindow) {
+              iframe.contentWindow.print();
+            } else {
+              throw new Error('Jendela iframe tidak tersedia.');
+            }
+          }, 1500); // Penundaan 1.5 detik untuk rendering
+        } catch (err) {
+          console.error('Gagal mencetak:', err);
+          setError('Gagal mencetak laporan.');
+          cleanupIframe();
+          window.removeEventListener('afterprint', onAfterPrint);
+        }
+      };
+
+      // Tangani error jika iframe gagal dimuat
+      iframe.onerror = () => {
+        setError('Gagal memuat PDF untuk pencetakan.');
+        cleanupIframe();
+        window.removeEventListener('afterprint', onAfterPrint);
+      };
+    } catch (err) {
+      console.error('Gagal memulai pencetakan:', err);
+      setError('Gagal memulai pencetakan.');
+    }
+  };
+
   return (
-    <div className="container mx-auto p-4 lg:p-6">
+    <div className="container mx-auto p-4 lg:p-6 overflow-x-hidden">
       {/* Header */}
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-gray-800">Laporan Absensi</h1>
@@ -131,7 +189,7 @@ export default function LaporanAbsensi() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Laporan</label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               value={scope}
               onChange={(e) => setScope(e.target.value as 'single' | 'all')}
             >
@@ -145,7 +203,7 @@ export default function LaporanAbsensi() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Karyawan</label>
               <select
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 value={selectedKaryawan || ''}
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
@@ -166,7 +224,7 @@ export default function LaporanAbsensi() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Bulan</label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               value={bulan}
               onChange={(e) => setBulan(parseInt(e.target.value))}
             >
@@ -182,7 +240,7 @@ export default function LaporanAbsensi() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
             <select
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
               value={tahun}
               onChange={(e) => setTahun(parseInt(e.target.value))}
             >
@@ -195,7 +253,7 @@ export default function LaporanAbsensi() {
           </div>
         </div>
 
-        {/* Download Buttons */}
+        {/* Download and Print Buttons */}
         <div className="flex flex-wrap gap-3 mt-4">
           <button
             className={`px-4 py-2 rounded-md flex items-center gap-2 ${
@@ -207,7 +265,11 @@ export default function LaporanAbsensi() {
             disabled={scope === 'single' && !selectedKaryawan}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
             </svg>
             Unduh PDF
           </button>
@@ -221,9 +283,31 @@ export default function LaporanAbsensi() {
             disabled={scope === 'single' && !selectedKaryawan}
           >
             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
             </svg>
             Unduh Excel
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+            onClick={printReport}
+            disabled={scope === 'single' && !selectedKaryawan}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Cetak PDF
           </button>
         </div>
       </div>
@@ -289,24 +373,22 @@ export default function LaporanAbsensi() {
                     <tbody className="bg-white divide-y divide-gray-200">
                       {data.detail.map((item, i) => (
                         <tr key={i}>
-                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {item.tanggal}
-                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <span className={`px-2 py-1 rounded-full text-xs ${
-                              item.status === 'hadir'
-                                ? 'bg-green-100 text-green-800'
-                                : item.status === 'sakit'
-                                ? 'bg-red-100 text-red-800'
-                                : 'bg-yellow-100 text-yellow-800'
-                            }`}>
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                item.status === 'hadir'
+                                  ? 'bg-green-100 text-green-800'
+                                  : item.status === 'sakit'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
                               {item.status}
                             </span>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="text-sm text-gray-500 truncate max-w-xs">
-                              {item.keterangan}
-                            </div>
+                            <div className="text-sm text-gray-500 truncate max-w-xs">{item.keterangan}</div>
                           </td>
                         </tr>
                       ))}
@@ -327,7 +409,7 @@ export default function LaporanAbsensi() {
                       {report.karyawan_nama || `Karyawan ID: ${report.karyawan_id}`}
                     </h2>
                   </div>
-                  
+
                   {/* Summary for each employee */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
                     <div className="bg-gray-50 rounded-lg p-4">
@@ -363,22 +445,22 @@ export default function LaporanAbsensi() {
                       <tbody className="bg-white divide-y divide-gray-200">
                         {report.detail.map((item, i) => (
                           <tr key={i}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {item.tanggal}
-                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                              <span className={`px-2 py-1 rounded-full text-xs ${
-                                item.status === 'hadir'
-                                  ? 'bg-green-100 text-green-800'
-                                  : item.status === 'sakit'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}>
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  item.status === 'hadir'
+                                    ? 'bg-green-100 text-green-800'
+                                    : item.status === 'sakit'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}
+                              >
                                 {item.status}
                               </span>
                             </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {item.keterangan}
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500 truncate max-w-xs">{item.keterangan}</div>
                             </td>
                           </tr>
                         ))}

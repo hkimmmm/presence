@@ -31,7 +31,7 @@ export default function ProductOverviewCard({ className }: ProductOverviewCardPr
       </div>
 
       <div className="mt-3 flex items-baseline">
-        <h2 className="text-3xl font-bold">$43,630</h2>
+        <h2 className="text-3xl text-black font-bold">$43,630</h2>
         <p className="text-gray-500 text-sm ml-2 total-sales">Total sales</p>
       </div>
 
