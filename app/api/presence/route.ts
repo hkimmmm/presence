@@ -67,11 +67,30 @@ export async function GET(req: NextRequest) {
   if (!auth) return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers });
 
   try {
-    const karyawan_id = auth.user.karyawan_id;
-    const [rows] = await pool.query('SELECT * FROM presensi WHERE karyawan_id = ?', [karyawan_id]);
+    const { karyawan_id, role } = auth.user; // Asumsi payload JWT berisi karyawan_id dan role
+    let rows;
+
+    if (role === 'admin') {
+      // Admin: Ambil semua data presensi
+      [rows] = await pool.query(`
+        SELECT p.*, k.nama AS karyawan_nama 
+        FROM presensi p 
+        LEFT JOIN karyawan k ON p.karyawan_id = k.id
+      `);
+    } else {
+      // Non-admin: Ambil data presensi hanya untuk karyawan_id pengguna
+      [rows] = await pool.query(`
+        SELECT p.*, k.nama AS karyawan_nama 
+        FROM presensi p 
+        LEFT JOIN karyawan k ON p.karyawan_id = k.id 
+        WHERE p.karyawan_id = ?
+      `, [karyawan_id]);
+    }
+
     return new NextResponse(JSON.stringify(rows), { status: 200, headers });
   } catch (error) {
-    return new NextResponse(JSON.stringify({ message: 'Gagal mengambil data presensi', error }), { status: 500, headers });
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    return new NextResponse(JSON.stringify({ message: 'Gagal mengambil data presensi', error: errorMessage }), { status: 500, headers });
   }
 }
 

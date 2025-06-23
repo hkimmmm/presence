@@ -1,6 +1,6 @@
 import LeavesList from "@/components/page/Leaves";
 export const metadata = {
-    title: 'Leaves Request',
+    title: 'Daftar Pengajuan Cuti',
     description: 'Daftar izin',
   };
 

@@ -41,10 +41,10 @@ export default function Sidebar() {
       } catch (error) {
         console.error('Error decoding token:', error);
         localStorage.removeItem('token');
-        router.push('/login');
+        router.push('/auth/login');
       }
     } else {
-      router.push('/login');
+      router.push('/auth/login');
     }
   }, [router]);
 
@@ -64,7 +64,7 @@ export default function Sidebar() {
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    router.push('/login');
+    router.push('/auth/login');
   };
 
   // Tampilkan loading jika data user belum tersedia
