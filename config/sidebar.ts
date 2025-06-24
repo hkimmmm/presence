@@ -3,7 +3,7 @@ import {
     DocumentTextIcon,
     CalendarIcon,
     UsersIcon,
-    CogIcon,
+    MapIcon,
     BriefcaseIcon,
     UserCircleIcon,
     QrCodeIcon,
@@ -41,9 +41,9 @@ import {
       icon: QrCodeIcon,
     },
     {
-      name: 'Settings',
-      href: '/dashboard/settings',
-      icon: CogIcon,
+      name: 'Lokasi Kantor',
+      href: '/dashboard/lokasi',
+      icon: MapIcon,
     },
     {
       name: 'Profile',

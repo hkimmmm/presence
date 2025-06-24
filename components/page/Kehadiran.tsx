@@ -55,7 +55,7 @@ const FILTER_OPTIONS = [
   { value: 'sakit', label: 'Sakit' }
 ];
 
-export default function PresencePage() {
+export default function KehadiranPage() {
   const router = useRouter();
   const [presences, setPresences] = useState<Presence[]>([]);
   const [selectedPresences, setSelectedPresences] = useState<number[]>([]);

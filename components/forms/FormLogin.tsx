@@ -1,8 +1,15 @@
+// app/auth/login/page.tsx
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { EyeIcon, EyeSlashIcon } from "@heroicons/react/24/outline";
+import { jwtDecode } from 'jwt-decode';
+
+interface TokenPayload {
+  username: string;
+  role: string;
+}
 
 export default function LoginForm() {
   const [form, setForm] = useState({
@@ -12,6 +19,20 @@ export default function LoginForm() {
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+
+  useEffect(() => {
+    const error = searchParams.get('error');
+    const errorMessages: Record<string, string> = {
+      missing_token: 'Silakan login terlebih dahulu.',
+      admin_access_required: 'Akses hanya untuk admin.',
+      supervisor_access_required: 'Akses hanya untuk supervisor.',
+      invalid_token: 'Sesi tidak valid. Silakan login kembali.',
+    };
+    if (error && errorMessages[error]) {
+      setError(errorMessages[error]);
+    }
+  }, [searchParams]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setForm({
@@ -39,8 +60,15 @@ export default function LoginForm() {
         return;
       }
 
-      localStorage.setItem("token", result.token);
-      router.push("/dashboard");
+      // Token disimpan di cookie httpOnly, decode dari response
+      const decoded: TokenPayload = jwtDecode(result.token);
+      if (decoded.role === 'supervisor') {
+        router.push("/supervisor");
+      } else if (decoded.role === 'admin') {
+        router.push("/dashboard");
+      } else {
+        setError("Anda tidak punya akses ke sistem.");
+      }
     } catch {
       setError("Terjadi kesalahan saat menghubungi server.");
     }
@@ -51,7 +79,6 @@ export default function LoginForm() {
       {error && (
         <div className="bg-blue-100 text-blue-600 p-2 rounded-md text-sm">{error}</div>
       )}
-
       <div className="flex flex-col">
         <label htmlFor="email" className="text-sm font-medium text-gray-600">
           Email
@@ -67,7 +94,6 @@ export default function LoginForm() {
           placeholder="Masukkan email"
         />
       </div>
-
       <div className="flex flex-col relative">
         <label htmlFor="password" className="text-sm font-medium text-gray-600">
           Password
@@ -92,7 +118,6 @@ export default function LoginForm() {
           </button>
         </div>
       </div>
-
       <button
         type="submit"
         className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 rounded-lg transition"

@@ -282,7 +282,7 @@ const EmployeeList: React.FC = () => {
     </div>
   </div>
 
-  <div className="mt-4 overflow-x-auto">
+  <div className="mt-4 ">
     {loading ? (
       <div className="flex justify-center items-center h-64">
         <p>Memuat data sales...</p>

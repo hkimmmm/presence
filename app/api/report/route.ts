@@ -124,143 +124,214 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Handle format
-    if (format === 'excel') {
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet('Laporan Absensi');
+   if (format === 'excel') {
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet('Laporan Absensi');
 
-      // Tambahkan header perusahaan
-      worksheet.mergeCells('A1:E1');
-      worksheet.getCell('A1').value = 'CV Citra Buana Cemerlang';
-      worksheet.getCell('A1').font = { name: 'Arial', size: 16, bold: true };
-      worksheet.getCell('A1').alignment = { vertical: 'middle', horizontal: 'center' };
-      worksheet.getCell('A1').fill = {
+    // Header Perusahaan
+    worksheet.mergeCells('A1:E1');
+    worksheet.getCell('A1').value = 'CV CITRA BUANA CEMERLANG';
+    worksheet.getCell('A1').font = { 
+        name: 'Calibri', 
+        size: 18, 
+        bold: true,
+        color: { argb: 'FFFFFFFF' } 
+    };
+    worksheet.getCell('A1').fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF4F81BD' },
-      };
-      worksheet.getCell('A1').border = {
-        top: { style: 'thin' },
-        left: { style: 'thin' },
-        bottom: { style: 'thin' },
-        right: { style: 'thin' },
-      };
+        fgColor: { argb: 'FF002060' } // Biru navy
+    };
+    worksheet.getCell('A1').alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center' 
+    };
 
-      worksheet.mergeCells('A2:E2');
-      worksheet.getCell('A2').value = `Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`;
-      worksheet.getCell('A2').font = { name: 'Arial', size: 12, bold: true };
-      worksheet.getCell('A2').alignment = { vertical: 'middle', horizontal: 'center' };
-      worksheet.addRow([]); // Baris kosong
+    // Judul Laporan
+    worksheet.mergeCells('A2:E2');
+    worksheet.getCell('A2').value = `LAPORAN ABSENSI KARYAWAN - ${monthNames[bulan - 1]} ${tahun}`;
+    worksheet.getCell('A2').font = {
+        name: 'Calibri',
+        size: 14,
+        bold: true
+    };
+    worksheet.getCell('A2').alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center' 
+    };
 
-      // Definisikan kolom
-      worksheet.columns = [
-        { header: 'Karyawan ID', key: 'karyawan_id', width: 15 },
+    // Baris kosong
+    worksheet.addRow([]);
+
+    // Header Kolom
+    worksheet.columns = [
+        { header: 'ID Karyawan', key: 'karyawan_id', width: 12 },
         { header: 'Nama Karyawan', key: 'karyawan_nama', width: 25 },
         { header: 'Tanggal', key: 'tanggal', width: 15 },
-        { header: 'Status', key: 'status', width: 15 },
-        { header: 'Keterangan', key: 'keterangan', width: 30 },
-      ];
+        { header: 'Status', key: 'status', width: 12 },
+        { header: 'Keterangan', key: 'keterangan', width: 30 }
+    ];
 
-      // Style header kolom
-      worksheet.getRow(4).font = { name: 'Arial', bold: true, size: 11 };
-      worksheet.getRow(4).fill = {
+    const headerRow = worksheet.getRow(4);
+    headerRow.values = ['ID Karyawan', 'Nama Karyawan', 'Tanggal', 'Status', 'Keterangan'];
+    headerRow.font = {
+        name: 'Calibri',
+        bold: true,
+        size: 11,
+        color: { argb: 'FF000000' }
+    };
+    headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFD9EDF7' },
-      };
-      worksheet.getRow(4).alignment = { vertical: 'middle', horizontal: 'center' };
-      worksheet.getRow(4).eachCell((cell) => {
+        fgColor: { argb: 'FFD3D3D3' } // Abu-abu muda
+    };
+    headerRow.alignment = { 
+        vertical: 'middle', 
+        horizontal: 'center' 
+    };
+    headerRow.eachCell((cell) => {
         cell.border = {
-          top: { style: 'thin' },
-          left: { style: 'thin' },
-          bottom: { style: 'thin' },
-          right: { style: 'thin' },
+            top: { style: 'thin', color: { argb: 'FF000000' } },
+            left: { style: 'thin', color: { argb: 'FF000000' } },
+            bottom: { style: 'thin', color: { argb: 'FF000000' } },
+            right: { style: 'thin', color: { argb: 'FF000000' } }
         };
-      });
+    });
 
-      // Tambahkan data
-      reportData.forEach((report, index) => {
-        worksheet.addRow({
-          karyawan_id: report.karyawan_id,
-          karyawan_nama: report.karyawan_nama,
-          tanggal: `Total Bulan ${monthNames[bulan - 1]}/${tahun}`,
-          status: '',
-          keterangan: `Hadir: ${report.total_hadir}, Sakit: ${report.total_sakit}, Izin: ${report.total_izin}`,
-        }).font = { name: 'Arial', bold: true, size: 11 };
-
-        worksheet.addRow({}); // Baris kosong
-
-        report.detail.forEach((item: any) => {
-          const row = worksheet.addRow({
+    // Tambahkan data
+    reportData.forEach((report, index) => {
+        // Baris Total per Karyawan
+        const totalRow = worksheet.addRow({
             karyawan_id: report.karyawan_id,
             karyawan_nama: report.karyawan_nama,
-            tanggal: item.tanggal,
-            status: item.status,
-            keterangan: item.keterangan || '-',
-          });
-          row.font = { name: 'Arial', size: 10 };
-          row.eachCell((cell) => {
-            cell.border = {
-              top: { style: 'thin' },
-              left: { style: 'thin' },
-              bottom: { style: 'thin' },
-              right: { style: 'thin' },
+            tanggal: '',
+            status: `Hadir: ${report.total_hadir} | Sakit: ${report.total_sakit} | Izin: ${report.total_izin}`,
+            keterangan: ''
+        });
+        
+        totalRow.font = { 
+            name: 'Calibri', 
+            bold: true, 
+            size: 10 
+        };
+        totalRow.fill = {
+            type: 'pattern',
+            pattern: 'solid',
+            fgColor: { argb: 'FFF2F2F2' } // Abu-abu sangat muda
+        };
+        worksheet.mergeCells(`D${totalRow.number}:E${totalRow.number}`);
+
+        // Detail Absensi
+        report.detail.forEach((item: any) => {
+            const row = worksheet.addRow({
+                karyawan_id: '',
+                karyawan_nama: '',
+                tanggal: item.tanggal,
+                status: item.status,
+                keterangan: item.keterangan || '-'
+            });
+            
+            row.font = { 
+                name: 'Calibri', 
+                size: 10 
             };
-          });
+            
+            // Warna berbeda untuk setiap status
+            const statusCell = row.getCell(4);
+            switch(item.status.toLowerCase()) {
+                case 'hadir':
+                    statusCell.fill = { 
+                        type: 'pattern', 
+                        pattern: 'solid', 
+                        fgColor: { argb: 'FFC6EFCE' } // Hijau muda
+                    };
+                    break;
+                case 'izin':
+                    statusCell.fill = { 
+                        type: 'pattern', 
+                        pattern: 'solid', 
+                        fgColor: { argb: 'FFFFEB9C' } // Kuning
+                    };
+                    break;
+                case 'sakit':
+                    statusCell.fill = { 
+                        type: 'pattern', 
+                        pattern: 'solid', 
+                        fgColor: { argb: 'FFFFC7CE' } // Merah muda
+                    };
+                    break;
+            }
+            
+            row.eachCell((cell) => {
+                cell.border = {
+                    top: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    left: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    bottom: { style: 'thin', color: { argb: 'FFD9D9D9' } },
+                    right: { style: 'thin', color: { argb: 'FFD9D9D9' } }
+                };
+            });
         });
 
+        // Baris kosong antar karyawan (khusus laporan semua karyawan)
         if (scope === 'all' && index < reportData.length - 1) {
-          worksheet.addRow({});
+            worksheet.addRow([]);
         }
-      });
+    });
 
-      const buffer = await workbook.xlsx.writeBuffer();
+    // Format semua cell tanggal
+    worksheet.getColumn(3).eachCell((cell) => {
+        if (cell.value && cell.value.toString().match(/^\d{4}-\d{2}-\d{2}$/)) {
+            cell.numFmt = 'dd-mmm-yyyy'; // Format: 01-Jan-2023
+        }
+    });
 
-      return new NextResponse(buffer, {
+    const buffer = await workbook.xlsx.writeBuffer();
+
+    return new NextResponse(buffer, {
         status: 200,
         headers: {
-          'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.xlsx`,
+            'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'Content-Disposition': `attachment; filename=Laporan_Absensi_${monthNames[bulan-1]}_${tahun}.xlsx`
         },
-      });
-    } else if (format === 'pdf') {
-      const fontPath = path.resolve('public/fonts/Merriweather-Regular.ttf');
+    });
+} else if (format === 'pdf') {
+    const fontPath = path.resolve('public/fonts/Merriweather-Regular.ttf');
 
-      if (!fs.existsSync(fontPath)) {
+    if (!fs.existsSync(fontPath)) {
         return NextResponse.json({ error: 'Font file tidak ditemukan' }, { status: 500 });
-      }
+    }
 
-      const doc = new PDFDocument({
+    const doc = new PDFDocument({
         margin: 40,
         font: fontPath,
         info: { Title: 'Laporan Absensi CV Citra Buana Cemerlang' },
-      });
-      const buffers: Buffer[] = [];
+    });
+    const buffers: Buffer[] = [];
 
-      doc.on('data', buffers.push.bind(buffers));
+    doc.on('data', buffers.push.bind(buffers));
 
-      try {
+    try {
         doc.registerFont('Merriweather', fontPath);
         doc.font('Merriweather');
-      } catch (fontError) {
+    } catch (fontError) {
         console.error('Gagal memuat font Merriweather:', fontError);
         doc.font('Helvetica');
-      }
+    }
 
-      // Header perusahaan
-      doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
-      doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
-      doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
-      doc.moveDown(2);
+    // Header perusahaan
+    doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
+    doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
+    doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
+    doc.moveDown(2);
 
-      reportData.forEach((report, index) => {
+    reportData.forEach((report, index) => {
         if (index > 0) {
-          doc.addPage();
-          // Repeat header on new page
-          doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
-          doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
-          doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
-          doc.moveDown(2);
+            doc.addPage();
+            // Repeat header on new page
+            doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
+            doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
+            doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
+            doc.moveDown(2);
         }
 
         // Informasi karyawan
@@ -270,69 +341,80 @@ export async function GET(req: NextRequest) {
         doc.text(`Total Izin: ${report.total_izin}`, 50, doc.y + 10);
         doc.moveDown(2);
 
-        // Header tabel
+        // Header tabel - PERBAIKAN DISINI
         const tableTop = doc.y;
         const col1 = 50, col2 = 150, col3 = 250;
-        doc.fontSize(10).fillColor('#FFFFFF').font('Merriweather').rect(col1 - 5, tableTop - 5, 500, 20).fill('#2F5496');
-        doc.text('Tanggal', col1, tableTop, { align: 'left', width: 100 });
-        doc.text('Status', col2, tableTop, { align: 'center', width: 100 });
-        doc.text('Keterangan', col3, tableTop, { align: 'left', width: 300 });
-        doc.moveDown(1); // Tingkatkan jarak setelah header
+        const rowHeight = 20;
 
-        // Tabel isi with debug
+        // 1. Gambar background header terlebih dahulu
+        doc.rect(col1 - 5, tableTop - 5, 500, rowHeight).fill('#2F5496');
+        
+        // 2. Kemudian tambahkan teks di atasnya
+        doc.fontSize(10)
+           .fillColor('#FFFFFF') // Teks putih
+           .text('Tanggal', col1, tableTop, { align: 'left', width: 100 })
+           .text('Status', col2, tableTop, { align: 'center', width: 100 })
+           .text('Keterangan', col3, tableTop, { align: 'left', width: 300 });
+
+        doc.moveDown(1);
+
+        // Tabel isi - PERBAIKAN DISINI
         if (report.detail.length === 0) {
-          console.log(`No data found for karyawan_id ${report.karyawan_id} in month ${bulan} ${tahun}`);
-          doc.text('Tidak ada data absensi untuk periode ini.', col1, doc.y, { width: 500 });
-          doc.moveDown(1);
+            console.log(`No data found for karyawan_id ${report.karyawan_id} in month ${bulan} ${tahun}`);
+            doc.text('Tidak ada data absensi untuk periode ini.', col1, doc.y, { width: 500 });
+            doc.moveDown(1);
         } else {
-          report.detail.forEach((item: any, i: number) => {
-            const rowTop = doc.y;
-            doc.fillColor('#333333');
-            if (i % 2 === 0) {
-              doc.rect(col1 - 5, rowTop - 5, 500, 20).fill('#F5F6F5');
-              doc.fillColor('#333333');
-            }
-            console.log(`Rendering item for karyawan_id ${report.karyawan_id}:`, JSON.stringify(item, null, 2)); // Debug log
-            doc.text(item.tanggal || 'Tidak ada', col1, rowTop, { align: 'left', width: 100 });
-            doc.text(item.status || 'Tidak ada', col2, rowTop, { align: 'center', width: 100 });
-            doc.text(item.keterangan || 'Tidak ada', col3, rowTop, { align: 'left', width: 300 });
-            doc.moveDown(1); // Tingkatkan jarak antar baris
-          });
+            report.detail.forEach((item: any, i: number) => {
+                const rowTop = doc.y;
+                
+                // Gambar background terlebih dahulu (jika baris ganjil)
+                if (i % 2 === 0) {
+                    doc.rect(col1 - 5, rowTop - 5, 500, rowHeight).fill('#F5F6F5');
+                }
+                
+                // Kemudian tambahkan teks
+                doc.fillColor('#333333') // Teks hitam
+                   .text(item.tanggal || 'Tidak ada', col1, rowTop, { align: 'left', width: 100 })
+                   .text(item.status || 'Tidak ada', col2, rowTop, { align: 'center', width: 100 })
+                   .text(item.keterangan || 'Tidak ada', col3, rowTop, { align: 'left', width: 300 });
+                
+                doc.moveDown(1);
+            });
         }
 
         // Garis penutup tabel
         doc.lineWidth(0.5).moveTo(col1 - 5, doc.y).lineTo(col1 + col3 + 245, doc.y).stroke();
-      });
+    });
 
-      doc.end();
+    doc.end();
 
-      return new Promise<NextResponse>((resolve) => {
+    return new Promise<NextResponse>((resolve) => {
         doc.on('end', () => {
-          const pdfBuffer = Buffer.concat(buffers);
-          if (print) {
-            resolve(
-              new NextResponse(pdfBuffer, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-                },
-              })
-            );
-          } else {
-            resolve(
-              new NextResponse(pdfBuffer, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-                },
-              })
-            );
-          }
+            const pdfBuffer = Buffer.concat(buffers);
+            if (print) {
+                resolve(
+                    new NextResponse(pdfBuffer, {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/pdf',
+                            'Content-Disposition': `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+                        },
+                    })
+                );
+            } else {
+                resolve(
+                    new NextResponse(pdfBuffer, {
+                        status: 200,
+                        headers: {
+                            'Content-Type': 'application/pdf',
+                            'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+                        },
+                    })
+                );
+            }
         });
-      });
-    }
+    });
+}
 
     // Default: JSON
     return NextResponse.json(scope === 'single' ? reportData[0] : reportData);

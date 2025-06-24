@@ -1,19 +1,17 @@
+// components/sidebar.tsx
 "use client";
 import Link from 'next/link';
+import { sidebarItems } from '@/config/_sidebar';
 import { useSidebar } from '@/context/SidebarContext';
 import { useEffect, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 
-// Impor sidebarItems untuk admin
-import { sidebarItems } from '@/config/sidebar';
-
-// Definisikan tipe untuk user
 interface User {
   image: string;
   name: string;
-  role: string;
+  role: string; // Selalu "Supervisor" untuk UI
 }
 
 export default function Sidebar() {
@@ -34,15 +32,10 @@ export default function Sidebar() {
           throw new Error(result.message || 'Failed to fetch user');
         }
 
-        // Pastikan hanya admin yang bisa melanjutkan
-        if (result.role !== 'admin') {
-          throw new Error('Access denied: Admin only');
-        }
-
         setUser({
           image: result.foto_profile || '/images/default-profile.jpg',
           name: result.nama || result.username,
-          role: result.role, // Gunakan role dari server
+          role: 'Supervisor', // Selalu "Supervisor" untuk UI
         });
       } catch (error) {
         console.error('Error fetching user:', error);
@@ -68,15 +61,8 @@ export default function Sidebar() {
   // Fungsi logout
   const handleLogout = async () => {
     try {
-      const response = await fetch('/api/auth/logout', {
-        method: 'POST', // Sesuaikan dengan endpoint logout Anda
-        credentials: 'include',
-      });
-      if (response.ok) {
-        router.push('/auth/login');
-      } else {
-        throw new Error('Logout failed');
-      }
+      await fetch('/api/auth/logout', { method: 'GET' });
+      router.push('/auth/login');
     } catch (error) {
       console.error('Error logging out:', error);
       router.push('/auth/login');

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
 import pool from '@/app/utils/db';
@@ -21,12 +22,15 @@ export async function OPTIONS() {
 }
 
 function getTokenFromRequest(req: NextRequest): string | null {
+  // Check Authorization header first
   const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  return authHeader.replace('Bearer ', '');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.replace('Bearer ', '');
+  }
+  // Fallback to cookie
+  return req.cookies.get('token')?.value || null;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 function verifyToken(token: string): any | null {
   try {
     return jwt.verify(token, JWT_SECRET);
@@ -51,7 +55,6 @@ function hitungJarak(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return earthRadius * c;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
@@ -64,21 +67,32 @@ export async function GET(req: NextRequest) {
   const headers = corsHeaders();
 
   const auth = await authorize(req);
-  if (!auth) return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers });
+  if (!auth) {
+    return new NextResponse(JSON.stringify({ message: 'Tidak diizinkan: Token tidak valid' }), {
+      status: 401,
+      headers,
+    });
+  }
 
   try {
-    const { karyawan_id, role } = auth.user; // Asumsi payload JWT berisi karyawan_id dan role
+    const { karyawan_id, role } = auth.user; // Assume JWT payload contains karyawan_id and role
     let rows;
 
-    if (role === 'admin') {
-      // Admin: Ambil semua data presensi
+    if (['admin', 'supervisor'].includes(role)) {
+      // Admin or Supervisor: Fetch all presence data
       [rows] = await pool.query(`
         SELECT p.*, k.nama AS karyawan_nama 
         FROM presensi p 
         LEFT JOIN karyawan k ON p.karyawan_id = k.id
       `);
     } else {
-      // Non-admin: Ambil data presensi hanya untuk karyawan_id pengguna
+      // Non-admin/supervisor: Fetch presence data only for the user's karyawan_id
+      if (!karyawan_id) {
+        return new NextResponse(JSON.stringify({ message: 'karyawan_id diperlukan untuk non-admin/supervisor' }), {
+          status: 400,
+          headers,
+        });
+      }
       [rows] = await pool.query(`
         SELECT p.*, k.nama AS karyawan_nama 
         FROM presensi p 
@@ -90,14 +104,22 @@ export async function GET(req: NextRequest) {
     return new NextResponse(JSON.stringify(rows), { status: 200, headers });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
-    return new NextResponse(JSON.stringify({ message: 'Gagal mengambil data presensi', error: errorMessage }), { status: 500, headers });
+    return new NextResponse(
+      JSON.stringify({ message: 'Gagal mengambil data presensi', error: errorMessage }),
+      { status: 500, headers }
+    );
   }
 }
 
 export async function POST(req: NextRequest) {
   const headers = corsHeaders();
   const auth = await authorize(req);
-  if (!auth) return new NextResponse(JSON.stringify({ message: 'Unauthorized' }), { status: 401, headers });
+  if (!auth) {
+    return new NextResponse(JSON.stringify({ message: 'Tidak diizinkan: Token tidak valid' }), {
+      status: 401,
+      headers,
+    });
+  }
 
   try {
     const body = await req.json();
@@ -105,12 +127,21 @@ export async function POST(req: NextRequest) {
     const { checkin_lat, checkin_lng, status = 'hadir' } = body;
 
     if (!status) {
-      return new NextResponse(JSON.stringify({ message: 'Status presensi harus diisi' }), { status: 400, headers });
+      return new NextResponse(JSON.stringify({ message: 'Status presensi harus diisi' }), {
+        status: 400,
+        headers,
+      });
     }
 
     const karyawan_id = auth.user.karyawan_id;
+    if (!karyawan_id) {
+      return new NextResponse(JSON.stringify({ message: 'karyawan_id diperlukan' }), {
+        status: 400,
+        headers,
+      });
+    }
 
-    // Gunakan waktu WIB
+    // Use WIB time
     const now = new Date().toLocaleString('en-CA', {
       timeZone: 'Asia/Jakarta',
       year: 'numeric',
@@ -126,7 +157,6 @@ export async function POST(req: NextRequest) {
 
     console.log('⏰ Server time (WIB):', datetimeCheckin);
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [existingPresensi]: any = await pool.query(
       `SELECT id FROM presensi WHERE karyawan_id = ? AND tanggal = ? AND checkout_time IS NULL LIMIT 1`,
       [karyawan_id, tanggalFormatted]
@@ -151,7 +181,6 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const [kantorRows]: any = await pool.query('SELECT * FROM lokasi_kantor LIMIT 1');
       if (kantorRows.length === 0) {
         return new NextResponse(
@@ -185,7 +214,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const [result]: any = await pool.query(
       `INSERT INTO presensi (karyawan_id, tanggal, checkin_time, checkin_lat, checkin_lng, status, keterangan, created_at, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
@@ -199,8 +227,7 @@ export async function POST(req: NextRequest) {
       }),
       { status: 201, headers }
     );
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch ( error: any) {
+  } catch (error: any) {
     console.error('Check-in error:', error);
     return new NextResponse(
       JSON.stringify({
@@ -210,4 +237,4 @@ export async function POST(req: NextRequest) {
       { status: 500, headers }
     );
   }
-} 
+}

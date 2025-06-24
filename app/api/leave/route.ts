@@ -32,17 +32,16 @@ const BASE_URL = '/uploads/proof';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
-    'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
+    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
     'Content-Type': 'application/json',
   };
 }
 
 export async function OPTIONS() {
-  return new NextResponse(null, {
-    headers: corsHeaders(),
-  });
+  return new NextResponse(null, { headers: corsHeaders() });
 }
 
 function validateLeaveRequest(data: Partial<LeaveRequest>): data is LeaveRequest {
@@ -54,7 +53,7 @@ function validateLeaveRequest(data: Partial<LeaveRequest>): data is LeaveRequest
   const startDate = new Date(data.tanggal_mulai);
   const endDate = new Date(data.tanggal_selesai);
 
-  return validJenis && startDate <= endDate;
+  return validJenis && !isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && startDate <= endDate;
 }
 
 async function handleFileUpload(fileData: string | null): Promise<string | null> {
@@ -65,7 +64,7 @@ async function handleFileUpload(fileData: string | null): Promise<string | null>
   if (fileData.startsWith('data:image')) {
     try {
       const matches = fileData.match(/^data:image\/(\w+);base64,(.+)$/);
-      if (!matches || matches.length !== 3) throw new Error('Invalid image data');
+      if (!matches || matches.length !== 3) throw new Error('Invalid image data format');
 
       const ext = matches[1];
       const data = matches[2];
@@ -90,8 +89,11 @@ async function handleFileUpload(fileData: string | null): Promise<string | null>
 
 function getTokenFromRequest(req: NextRequest): string | null {
   const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) return null;
-  return authHeader.replace('Bearer ', '');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.replace('Bearer ', '');
+  }
+  const token = req.cookies.get('token')?.value;
+  return token || null;
 }
 
 function verifyToken(token: string): any | null {
@@ -108,7 +110,7 @@ export async function GET(request: NextRequest) {
   const payload = token ? verifyToken(token) : null;
 
   if (!payload) {
-    return NextResponse.json({ message: 'Unauthorized' }, { status: 401, headers: corsHeaders() });
+    return NextResponse.json({ message: 'Tidak diizinkan: Token tidak valid' }, { status: 401, headers: corsHeaders() });
   }
 
   try {
@@ -122,23 +124,29 @@ export async function GET(request: NextRequest) {
       FROM leave_requests lr
       JOIN karyawan k ON lr.karyawan_id = k.id
       LEFT JOIN users u ON lr.approved_by = u.id
+      JOIN users u_k ON k.user_id = u_k.id
     `;
-
     const params: any[] = [];
 
     if (role === 'karyawan') {
       query += ' WHERE lr.karyawan_id = ?';
       params.push(karyawan_id);
+    } else if (role === 'supervisor') {
+      // Filter cuti dari pengguna dengan role 'karyawan'
+      query += ' WHERE u_k.role = ?';
+      params.push('karyawan');
+    } else if (role !== 'admin') {
+      return NextResponse.json({ message: 'Akses ditolak: Role tidak diizinkan' }, { status: 403, headers: corsHeaders() });
     }
 
     query += ' ORDER BY lr.created_at DESC';
 
-    const [rows] = await pool.query(query, params);
+    const [rows] = await pool.query<RowDataPacket[]>(query, params);
     return NextResponse.json(rows, { headers: corsHeaders() });
   } catch (error) {
     console.error('Error fetching leave requests:', error);
     return NextResponse.json(
-      { message: 'Error fetching leave requests' },
+      { message: 'Gagal mengambil data cuti. Silakan coba lagi nanti.' },
       { status: 500, headers: corsHeaders() }
     );
   }
@@ -149,10 +157,15 @@ export async function POST(request: NextRequest) {
   const payload = token ? verifyToken(token) : null;
 
   if (!payload) {
-    return NextResponse.json({ message: 'Tidak diizinkan' }, { status: 401, headers: corsHeaders() });
+    return NextResponse.json({ message: 'Tidak diizinkan: Token tidak valid' }, { status: 401, headers: corsHeaders() });
   }
 
-  const { karyawan_id } = payload;
+  const { karyawan_id, role } = payload;
+
+  // Hanya karyawan yang bisa mengajukan cuti
+  if (role !== 'karyawan') {
+    return NextResponse.json({ message: 'Akses ditolak: Hanya karyawan yang bisa mengajukan cuti' }, { status: 403, headers: corsHeaders() });
+  }
 
   try {
     const data: Partial<LeaveRequest> = await request.json();
@@ -160,19 +173,18 @@ export async function POST(request: NextRequest) {
 
     if (!validateLeaveRequest(data)) {
       return NextResponse.json(
-        { message: 'Data permintaan izin tidak valid' },
+        { message: 'Data permintaan cuti tidak valid. Pastikan semua kolom wajib diisi dengan benar.' },
         { status: 400, headers: corsHeaders() }
       );
     }
 
     const fotoBuktiUrl = await handleFileUpload(data.foto_bukti || null);
 
-    // Mulai transaksi
-    await pool.query('START TRANSACTION');
+    const connection = await pool.getConnection();
+    await connection.beginTransaction();
 
     try {
-      // Insert ke tabel leave_requests
-      const [leaveResult] = await pool.execute<ResultSetHeader>(
+      const [leaveResult] = await connection.execute<ResultSetHeader>(
         'INSERT INTO leave_requests (karyawan_id, jenis, tanggal_mulai, tanggal_selesai, keterangan, foto_bukti) VALUES (?, ?, ?, ?, ?, ?)',
         [
           data.karyawan_id,
@@ -184,20 +196,18 @@ export async function POST(request: NextRequest) {
         ]
       );
 
-      // Insert ke tabel presensi untuk setiap hari dalam rentang tanggal
       const startDate = new Date(data.tanggal_mulai);
       const endDate = new Date(data.tanggal_selesai);
       const currentDate = new Date(startDate);
 
       while (currentDate <= endDate) {
         const tanggal = currentDate.toISOString().split('T')[0];
-        // Cek apakah sudah ada entri presensi untuk hari ini
-        const [existingPresensi]: any = await pool.query(
+        const [existingPresensi]: any = await connection.query(
           'SELECT id FROM presensi WHERE karyawan_id = ? AND tanggal = ?',
           [data.karyawan_id, tanggal]
         );
         if (existingPresensi.length === 0) {
-          await pool.execute(
+          await connection.execute(
             'INSERT INTO presensi (karyawan_id, tanggal, status, keterangan, checkin_time, checkout_time, checkin_lat, checkin_lng, checkout_lat, checkout_lng, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())',
             [
               data.karyawan_id,
@@ -216,22 +226,22 @@ export async function POST(request: NextRequest) {
         currentDate.setDate(currentDate.getDate() + 1);
       }
 
-      // Commit transaksi
-      await pool.query('COMMIT');
+      await connection.commit();
+      connection.release();
 
       return NextResponse.json(
-        { message: 'Permintaan izin dan presensi berhasil dicatat', id: leaveResult.insertId },
+        { message: 'Permintaan cuti dan presensi berhasil dicatat', id: leaveResult.insertId },
         { status: 201, headers: corsHeaders() }
       );
     } catch (error) {
-      // Rollback transaksi jika terjadi error
-      await pool.query('ROLLBACK');
+      await connection.rollback();
+      connection.release();
       throw error;
     }
   } catch (error) {
-    console.error('Error saat membuat permintaan izin atau presensi:', error);
+    console.error('Error saat membuat permintaan cuti atau presensi:', error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : 'Error saat membuat permintaan izin atau presensi' },
+      { message: 'Gagal membuat permintaan cuti. Silakan coba lagi nanti.' },
       { status: 500, headers: corsHeaders() }
     );
   }
@@ -241,8 +251,8 @@ export async function PUT(request: NextRequest) {
   const token = getTokenFromRequest(request);
   const payload = token ? verifyToken(token) : null;
 
-  if (!payload || !['admin', 'atasan'].includes(payload.role)) {
-    return NextResponse.json({ message: 'Forbidden' }, { status: 403, headers: corsHeaders() });
+  if (!payload || !['admin', 'supervisor'].includes(payload.role)) {
+    return NextResponse.json({ message: 'Akses ditolak: Hanya admin atau supervisor yang diizinkan' }, { status: 403, headers: corsHeaders() });
   }
 
   try {
@@ -250,9 +260,23 @@ export async function PUT(request: NextRequest) {
 
     if (!data.id || !data.status || !['approved', 'rejected'].includes(data.status)) {
       return NextResponse.json(
-        { message: 'Invalid update data' },
+        { message: 'Data pembaruan tidak valid. ID dan status wajib diisi.' },
         { status: 400, headers: corsHeaders() }
       );
+    }
+
+    // Jika role adalah supervisor, pastikan hanya mengupdate cuti dari karyawan dengan role 'karyawan'
+    if (payload.role === 'supervisor') {
+      const [leave]: any = await pool.query(
+        'SELECT lr.karyawan_id FROM leave_requests lr JOIN karyawan k ON lr.karyawan_id = k.id JOIN users u ON k.user_id = u.id WHERE lr.id = ? AND u.role = ?',
+        [data.id, 'karyawan']
+      );
+      if (leave.length === 0) {
+        return NextResponse.json(
+          { message: 'Akses ditolak: Anda tidak memiliki izin untuk mengupdate cuti ini' },
+          { status: 403, headers: corsHeaders() }
+        );
+      }
     }
 
     const [result] = await pool.execute<ResultSetHeader>(
@@ -261,14 +285,66 @@ export async function PUT(request: NextRequest) {
     );
 
     if (result.affectedRows === 0) {
-      return NextResponse.json({ message: 'Leave request not found' }, { status: 404, headers: corsHeaders() });
+      return NextResponse.json({ message: 'Permintaan cuti tidak ditemukan' }, { status: 404, headers: corsHeaders() });
     }
 
-    return NextResponse.json({ message: 'Leave request updated successfully' }, { status: 200, headers: corsHeaders() });
+    return NextResponse.json({ message: 'Permintaan cuti berhasil diperbarui' }, { status: 200, headers: corsHeaders() });
   } catch (error) {
     console.error('Error updating leave request:', error);
     return NextResponse.json(
-      { message: 'Error updating leave request' },
+      { message: 'Gagal memperbarui permintaan cuti. Silakan coba lagi nanti.' },
+      { status: 500, headers: corsHeaders() }
+    );
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  const token = getTokenFromRequest(request);
+  const payload = token ? verifyToken(token) : null;
+
+  if (!payload || !['admin', 'supervisor'].includes(payload.role)) {
+    return NextResponse.json({ message: 'Akses ditolak: Hanya admin atau supervisor yang diizinkan' }, { status: 403, headers: corsHeaders() });
+  }
+
+  try {
+    const { ids }: { ids: number[] } = await request.json();
+
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json(
+        { message: 'Data ID tidak valid' },
+        { status: 400, headers: corsHeaders() }
+      );
+    }
+
+    // Jika role adalah supervisor, pastikan hanya menghapus cuti dari karyawan dengan role 'karyawan'
+    if (payload.role === 'supervisor') {
+      const [validLeaves]: any = await pool.query(
+        'SELECT lr.id FROM leave_requests lr JOIN karyawan k ON lr.karyawan_id = k.id JOIN users u ON k.user_id = u.id WHERE lr.id IN (?) AND u.role = ?',
+        [ids, 'karyawan']
+      );
+      const validIds = validLeaves.map((leave: any) => leave.id);
+      if (validIds.length !== ids.length) {
+        return NextResponse.json(
+          { message: 'Akses ditolak: Anda tidak memiliki izin untuk menghapus beberapa cuti ini' },
+          { status: 403, headers: corsHeaders() }
+        );
+      }
+    }
+
+    const [result] = await pool.execute<ResultSetHeader>(
+      'DELETE FROM leave_requests WHERE id IN (?)',
+      [ids]
+    );
+
+    if (result.affectedRows === 0) {
+      return NextResponse.json({ message: 'Tidak ada permintaan cuti yang dihapus' }, { status: 404, headers: corsHeaders() });
+    }
+
+    return NextResponse.json({ message: 'Permintaan cuti berhasil dihapus' }, { status: 200, headers: corsHeaders() });
+  } catch (error) {
+    console.error('Error deleting leave requests:', error);
+    return NextResponse.json(
+      { message: 'Gagal menghapus permintaan cuti. Silakan coba lagi nanti.' },
       { status: 500, headers: corsHeaders() }
     );
   }

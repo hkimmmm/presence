@@ -1,4 +1,4 @@
-// app/api/generate-qr/route.ts
+
 import { NextRequest, NextResponse } from 'next/server';
 import pool from '@/app/utils/db';
 import jwt from 'jsonwebtoken';
@@ -9,23 +9,34 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 type QRType = 'checkin' | 'checkout';
 
 interface AuthUser {
-  karyawan_id: number | null; // Izinkan null untuk admin
+  karyawan_id: number | null; // Allow null for admin
   role: string;
+  user_id?: number; // Optional for approved_by
+}
+
+function getTokenFromRequest(req: NextRequest): string | null {
+  // Check Authorization header first
+  const authHeader = req.headers.get('authorization');
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    return authHeader.replace('Bearer ', '');
+  }
+  // Fallback to cookie
+  return req.cookies.get('token')?.value || null;
 }
 
 async function authorize(req: NextRequest): Promise<{ user: AuthUser } | null> {
-  const authHeader = req.headers.get('authorization');
-  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+  const token = getTokenFromRequest(req);
+  if (!token) {
     return null;
   }
 
-  const token = authHeader.split(' ')[1];
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as { karyawan_id?: number; role?: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as { karyawan_id?: number; role?: string; user_id?: number };
     return {
       user: {
-        karyawan_id: decoded.karyawan_id || null, // Null untuk admin
+        karyawan_id: decoded.karyawan_id || null, // Null for admin
         role: decoded.role || 'karyawan',
+        user_id: decoded.user_id,
       },
     };
   } catch (err) {
@@ -36,10 +47,10 @@ async function authorize(req: NextRequest): Promise<{ user: AuthUser } | null> {
 
 export async function POST(req: NextRequest) {
   try {
-    // Verifikasi token
+    // Verify token
     const auth = await authorize(req);
     if (!auth) {
-      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+      return NextResponse.json({ message: 'Tidak diizinkan: Token tidak valid' }, { status: 401 });
     }
 
     const body = await req.json();
@@ -50,29 +61,29 @@ export async function POST(req: NextRequest) {
 
     console.log('Menerima request:', { type, presensiId, targetKaryawanId, isMassQR, user: auth.user });
 
-    // Validasi input
+    // Validate input
     if (type !== 'checkin' && type !== 'checkout') {
       return NextResponse.json({ message: 'Jenis QR tidak valid' }, { status: 400 });
     }
 
     if (isMassQR) {
-      // Mode QR massal (hanya untuk admin)
+      // Mass QR mode (admin only)
       if (auth.user.role !== 'admin') {
         return NextResponse.json({ message: 'Hanya admin yang dapat membuat QR massal' }, { status: 403 });
       }
 
-      // Buat batchId unik
+      // Create unique batchId
       const today = new Date().toISOString().slice(0, 10);
       const batchId = `${today}-${uuidv4()}`;
-      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 jam dari sekarang
+      const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now
 
-      // Simpan ke qr_batches, created_by bisa null untuk admin
+      // Save to qr_batches, created_by uses user_id
       await pool.query(
         'INSERT INTO qr_batches (id, type, created_at, expires_at, created_by) VALUES (?, ?, NOW(), ?, ?)',
-        [batchId, type, expiresAt, auth.user.karyawan_id]
+        [batchId, type, expiresAt, auth.user.user_id || null]
       );
 
-      // Buat payload QR code
+      // Create QR code payload
       const payload = {
         type,
         batchId,
@@ -88,7 +99,7 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Mode QR perorangan
+    // Individual QR mode
     if (!presensiId || isNaN(Number(presensiId))) {
       return NextResponse.json({ message: 'presensiId wajib diisi dan berupa angka' }, { status: 400 });
     }
@@ -113,8 +124,8 @@ export async function POST(req: NextRequest) {
       queryParams.push(targetKaryawanId);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const [presensiRows] = await pool.query(query, queryParams) as [PresensiRow[], any];
+    const [rows] = await pool.query(query, queryParams);
+    const presensiRows = rows as PresensiRow[];
 
     console.log('Hasil query presensi:', presensiRows);
 

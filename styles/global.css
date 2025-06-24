@@ -1,0 +1,7 @@
+tr {
+  transition: background-color 0.2s ease;
+}
+
+button {
+  transition: color 0.2s ease;
+}

@@ -140,7 +140,7 @@ export default function RegisterForm() {
         <select id="role" name="role" value={form.role} onChange={handleChange} required className="p-2 border rounded-lg focus:ring focus:ring-blue-300 text-sm">
           <option value="admin">Admin</option>
           <option value="sales">Sales</option>
-          <option value="manager">Manager</option>
+          <option value="supervisor">Supervisor</option>
         </select>
       </div>
 

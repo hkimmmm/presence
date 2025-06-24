@@ -3,7 +3,14 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
-import { TrashIcon, XMarkIcon, CheckIcon, FunnelIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { 
+  TrashIcon, 
+  CheckIcon, 
+  XMarkIcon, 
+  FunnelIcon, 
+  MagnifyingGlassIcon 
+} from '@heroicons/react/24/outline';
+
 import Modal from '@/components/ui/Modal';
 import InputField from '@/components/ui/InputField';
 import Table from '@/components/ui/Table';
@@ -24,14 +31,14 @@ const COLUMNS = [
 const STATUS_OPTIONS = [
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'rejected', label: 'Rejected' }
 ];
 
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Semua' },
   { value: 'pending', label: 'Pending' },
   { value: 'approved', label: 'Approved' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'rejected', label: 'Rejected' }
 ];
 
 export default function LeavesPage() {
@@ -39,8 +46,7 @@ export default function LeavesPage() {
   const [leaves, setLeaves] = useState<Leave[]>([]);
   const [selectedLeaves, setSelectedLeaves] = useState<number[]>([]);
   const [loading, setLoading] = useState(true);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [search, setSearch] = useState('');
+  const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<'all' | Leave['status']>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [isConfirmOpen, setIsConfirmOpen] = useState(false);
@@ -55,31 +61,28 @@ export default function LeavesPage() {
   useEffect(() => {
     const fetchLeaves = async () => {
       try {
+        // Validasi role supervisor
         const userResponse = await fetch('/api/me', {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // Sertakan cookie
         });
         const userResult = await userResponse.json();
 
-        if (!userResponse.ok || userResult.role !== 'admin') {
-          throw new Error(userResult.message || 'Access denied: Admin only');
+        if (!userResponse.ok || userResult.role !== 'supervisor') {
+          throw new Error('Access denied: Supervisor only');
         }
 
         const response = await fetch('/api/leave', {
           method: 'GET',
-          credentials: 'include',
+          credentials: 'include', // Sertakan cookie
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Gagal mengambil data cuti');
-        }
-
+        if (!response.ok) throw new Error('Failed to fetch leave data');
+        
         const data: Leave[] = await response.json();
         setLeaves(data);
       } catch (error) {
         console.error('Error fetching leaves:', error);
-        setErrorMessage(error instanceof Error ? error.message : 'Gagal mengambil data cuti');
         router.push('/auth/login?error=invalid_token');
       } finally {
         setLoading(false);
@@ -105,7 +108,7 @@ export default function LeavesPage() {
   );
 
   const startEditing = (id: number) => {
-    const leaveToEdit = leaves.find((leave) => leave.id === id);
+    const leaveToEdit = leaves.find(leave => leave.id === id);
     if (leaveToEdit) {
       setEditingId(id);
       setEditData({ ...leaveToEdit });
@@ -118,9 +121,9 @@ export default function LeavesPage() {
   };
 
   const handleEditChange = (field: keyof Leave, value: string) => {
-    setEditData((prev) => ({
+    setEditData(prev => ({
       ...prev,
-      [field]: value,
+      [field]: value
     }));
   };
 
@@ -128,11 +131,11 @@ export default function LeavesPage() {
     try {
       const response = await fetch(`/api/leave`, {
         method: 'PUT',
-        credentials: 'include',
+        credentials: 'include', // Sertakan cookie
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ id, status: editData.status }),
+        body: JSON.stringify({ id, ...editData }),
       });
 
       if (!response.ok) {
@@ -140,15 +143,15 @@ export default function LeavesPage() {
         throw new Error(result.message || 'Gagal memperbarui data cuti');
       }
 
-      setLeaves((prev) =>
-        prev.map((leave) => (leave.id === id ? { ...leave, ...editData } : leave))
+      setLeaves(prev =>
+        prev.map(leave => (leave.id === id ? { ...leave, ...editData } : leave))
       );
       setEditingId(null);
       setEditData({});
       setIsSuccessOpen(true);
     } catch (error) {
       console.error('Error updating leave:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Gagal memperbarui data cuti');
+      alert(error instanceof Error ? error.message : 'Gagal memperbarui data cuti');
     }
   };
 
@@ -162,15 +165,12 @@ export default function LeavesPage() {
     try {
       const response = await fetch('/api/leave', {
         method: 'DELETE',
-        credentials: 'include',
+        credentials: 'include', // Sertakan cookie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedLeaves }),
       });
 
-      if (!response.ok) {
-        const result = await response.json();
-        throw new Error(result.message || 'Gagal menghapus data cuti');
-      }
+      if (!response.ok) throw new Error('Failed to delete leaves');
 
       setLeaves(leaves.filter((leave) => !selectedLeaves.includes(leave.id!)));
       setSelectedLeaves([]);
@@ -178,7 +178,6 @@ export default function LeavesPage() {
       setIsSuccessOpen(true);
     } catch (error) {
       console.error('Error deleting leaves:', error);
-      setErrorMessage(error instanceof Error ? error.message : 'Gagal menghapus data cuti');
     }
   };
 
@@ -191,7 +190,7 @@ export default function LeavesPage() {
             onChange={(e) => handleEditChange('status', e.target.value)}
             className="px-3 py-1 rounded-full text-sm border border-gray-300 max-w-[120px]"
           >
-            {STATUS_OPTIONS.map((option) => (
+            {STATUS_OPTIONS.map(option => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -218,11 +217,14 @@ export default function LeavesPage() {
     const statusStyles = {
       approved: 'text-green-700 bg-green-100',
       rejected: 'text-red-700 bg-red-100',
-      pending: 'text-yellow-700 bg-yellow-100',
+      pending: 'text-yellow-700 bg-yellow-100'
     };
 
     return (
-      <div onDoubleClick={() => handleRowDoubleClick(leave.id!)} className="min-w-[120px]">
+      <div 
+        onDoubleClick={() => handleRowDoubleClick(leave.id!)}
+        className="min-w-[120px]"
+      >
         <span
           className={`px-3 py-1 rounded-full text-sm ${
             statusStyles[leave.status as keyof typeof statusStyles] || statusStyles.pending
@@ -245,7 +247,7 @@ export default function LeavesPage() {
       );
     }
     return (
-      <div
+      <div 
         onDoubleClick={() => handleRowDoubleClick(leave.id!)}
         className="min-w-[100px] max-w-[150px] truncate"
       >
@@ -256,10 +258,15 @@ export default function LeavesPage() {
 
   const renderEvidenceCell = (leave: Leave) => {
     if (!leave.foto_bukti) return '-';
-
+    
     return (
       <div className="w-12 h-12 relative">
-        <Image src={leave.foto_bukti} alt="Bukti" fill className="rounded object-cover" />
+        <Image
+          src={leave.foto_bukti}
+          alt="Bukti"
+          fill
+          className="rounded object-cover"
+        />
       </div>
     );
   };
@@ -279,7 +286,9 @@ export default function LeavesPage() {
     <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
         <h1 className="text-2xl font-bold text-gray-800">Daftar Cuti</h1>
+        
         <div className="flex items-center gap-4">
+          {/* Delete Button */}
           <button
             className={`p-2 rounded-md flex items-center ${
               selectedLeaves.length > 0
@@ -291,6 +300,8 @@ export default function LeavesPage() {
           >
             <TrashIcon className="w-4 h-4" />
           </button>
+
+          {/* Search */}
           <div className="relative">
             <button
               className="p-2 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none"
@@ -315,18 +326,21 @@ export default function LeavesPage() {
               </div>
             )}
           </div>
+          
+          {/* Filter */}
           <div className="relative">
-            <button
+            <button 
               onClick={() => setIsFilterOpen(!isFilterOpen)}
               className="flex items-center gap-2 bg-white shadow-md rounded-md border border-gray-200 px-3 py-2"
             >
               <FunnelIcon className="w-5 h-5 text-gray-600" />
-              <span className="text-black">Filter</span>
+              <span className='text-black'>Filter</span>
             </button>
+            
             {isFilterOpen && (
               <div className="absolute right-0 mt-2 w-32 bg-white shadow-md rounded-md border border-gray-200 z-10">
                 <ul className="text-sm text-gray-700">
-                  {FILTER_OPTIONS.map((option) => (
+                  {FILTER_OPTIONS.map(option => (
                     <li key={option.value}>
                       <button
                         className={`block w-full text-left px-4 py-2 hover:bg-gray-100 ${
@@ -347,6 +361,8 @@ export default function LeavesPage() {
           </div>
         </div>
       </div>
+
+      {/* Table Content */}
       <div className="mt-4">
         {loading ? (
           <div className="flex justify-center items-center h-64">
@@ -374,6 +390,8 @@ export default function LeavesPage() {
           </>
         )}
       </div>
+
+      {/* Modals */}
       <Modal
         isOpen={isConfirmOpen}
         title="Konfirmasi Hapus"
@@ -382,18 +400,13 @@ export default function LeavesPage() {
         onClose={() => setIsConfirmOpen(false)}
         onConfirm={handleDelete}
       />
+
       <Modal
         isOpen={isSuccessOpen}
         title="Sukses"
         message="Operasi berhasil dilakukan!"
         type="success"
         onClose={() => setIsSuccessOpen(false)}
-      />
-      <Modal
-        isOpen={!!errorMessage}
-        title="Error"
-        message={errorMessage || 'Terjadi kesalahan'}
-        onClose={() => setErrorMessage(null)}
       />
     </div>
   );

@@ -19,13 +19,16 @@ interface UserKaryawan extends RowDataPacket {
   tanggal_bergabung: string;
 }
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
+const JWT_SECRET: string = process.env.JWT_SECRET ?? '';
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET is not defined in environment variables');
+}
 
 export async function POST(request: Request) {
   try {
-    const { email, password } = await request.json();
+    const { email, password: inputPassword } = await request.json();
 
-    if (!email || !password) {
+    if (!email || !inputPassword) {
       return new NextResponse(
         JSON.stringify({ message: 'Email dan password wajib diisi' }),
         {
@@ -67,7 +70,7 @@ export async function POST(request: Request) {
     }
 
     const user = rows[0];
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(inputPassword, user.password);
 
     if (!isMatch) {
       return new NextResponse(
@@ -110,24 +113,35 @@ export async function POST(request: Request) {
         role: user.role,
         karyawan_id: user.karyawan_id,
         foto_profile: user.foto_profile,
-        nama: user.nama,  
+        nama: user.nama,
       },
       JWT_SECRET,
-      { expiresIn: '1d' } // token berlaku 1 hari, bisa disesuaikan
+      { expiresIn: '1d' }
     );
 
-    return new NextResponse(
+    const response = new NextResponse(
       JSON.stringify({
         message: 'Login berhasil',
         user: userWithoutPassword,
         leave_requests: leaveRequests,
-        token, // token JWT dikirim ke client
+        token,
       }),
       {
         status: 200,
         headers: corsHeaders(),
       }
     );
+
+    // Simpan token di cookie httpOnly
+    response.cookies.set('token', token, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 24 * 60 * 60, // 1 hari
+    });
+
+    return response;
   } catch (error) {
     console.error('Error saat login:', error);
     return new NextResponse(
@@ -142,7 +156,7 @@ export async function POST(request: Request) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
