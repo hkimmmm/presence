@@ -63,8 +63,10 @@ export async function PUT(req: Request) {
         }
 
         // Convert latitude and longitude to numbers for validation
-        const lat = typeof latitude === 'string' ? parseFloat(latitude) : latitude;
-        const lon = typeof longitude === 'string' ? parseFloat(longitude) : longitude;
+ // Convert dan bulatkan ke 12 desimal
+const lat = typeof latitude === 'string' ? parseFloat(parseFloat(latitude).toFixed(12)) : Number(latitude.toFixed(12));
+const lon = typeof longitude === 'string' ? parseFloat(parseFloat(longitude).toFixed(12)) : Number(longitude.toFixed(12));
+
 
         if (isNaN(lat) || lat < -90 || lat > 90) {
             throw new Error('Latitude harus antara -90 dan 90');

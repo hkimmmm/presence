@@ -122,7 +122,7 @@ export default function DashboardPage() {
   <div className="flex justify-between items-center mb-8">
     <div>
       <h1 className="text-3xl font-bold text-gray-800">Dashboard Admin</h1>
-      <p className="text-gray-500 mt-1">Ringkasan aktivitas karyawan hari ini</p>
+      <p className="text-gray-500 mt-1">Ringkasan aktivitas sales hari ini</p>
     </div>
     <div className="text-sm text-gray-500">
       {new Date().toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -154,7 +154,7 @@ export default function DashboardPage() {
     <div className="bg-white rounded-xl shadow-md p-6 border-l-4 border-indigo-500">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-gray-500 font-medium">Total Karyawan</p>
+          <p className="text-gray-500 font-medium">Total Sales</p>
           <p className="text-3xl font-bold text-gray-800 mt-2">{dashboardData.data.karyawan.length}</p>
         </div>
         <div className="bg-indigo-100 p-3 rounded-full">
@@ -224,7 +224,7 @@ export default function DashboardPage() {
         <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
           <h2 className="text-lg font-semibold text-gray-800 flex items-center">
             <UserIcon className="h-5 w-5 text-blue-500 mr-2" />
-            Daftar Karyawan Aktif
+            Daftar Sales Aktif
           </h2>
           <button className="text-sm text-blue-600 hover:text-blue-800 font-medium">
            <Link

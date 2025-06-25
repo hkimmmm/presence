@@ -93,7 +93,7 @@ export default function Sidebar() {
     md:translate-x-0`}
 >
   {/* Header Sidebar */}
-  <div className="flex justify-between items-center text-black p-4 border-b mt-[20px]">
+  <div className="flex justify-between items-center text-black p-4 border-b mt-[22px]">
     <h2 className="text-xl text-black font-bold">Citra Buana Cemerlang</h2>
     <XMarkIcon
       className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"

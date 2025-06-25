@@ -128,7 +128,7 @@ export async function GET(request: NextRequest) {
     `;
     const params: any[] = [];
 
-    if (role === 'karyawan') {
+    if (role === 'karyawan' || role === 'sales') {
       query += ' WHERE lr.karyawan_id = ?';
       params.push(karyawan_id);
     } else if (role === 'supervisor') {
@@ -163,8 +163,8 @@ export async function POST(request: NextRequest) {
   const { karyawan_id, role } = payload;
 
   // Hanya karyawan yang bisa mengajukan cuti
-  if (role !== 'karyawan') {
-    return NextResponse.json({ message: 'Akses ditolak: Hanya karyawan yang bisa mengajukan cuti' }, { status: 403, headers: corsHeaders() });
+  if (role !== 'karyawan' && role !== 'sales') {
+    return NextResponse.json({ message: 'Akses ditolak: Hanya karyawan dan sales yang bisa mengajukan cuti' }, { status: 403, headers: corsHeaders() });
   }
 
   try {

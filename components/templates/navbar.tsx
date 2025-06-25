@@ -2,29 +2,45 @@
 
 import Link from "next/link";
 import Button from "../ui/Button";
+// import CV from "@/assets/images/citra_buana_cemerlang.jpg";
+// import Image from "next/image";
 
 const Navbar = () => {
   return (
     <nav className="w-full bg-white shadow-md p-4">
       <div className="container mx-auto flex justify-between items-center">
-        {/* Nama Perusahaan */}
-        <h1 className="text-2xl font-bold text-gray-800">Dr White</h1>
+        {/* Logo dan Nama Perusahaan */}
+        <div className="flex items-center space-x-2">
+          {/* <div className="w-10 h-10 relative">
+            <Image 
+              src={CV} 
+              alt="CV Citra Buana Cemerlang Logo"
+              fill
+              className="object-contain"
+            />
+          </div> */}
+          <h1 className="text-xl md:text-2xl font-bold text-gray-800">
+            CV Citra Buana Cemerlang
+          </h1>
+        </div>
 
-        {/* Menu Navigasi */}
-        <ul className="hidden md:flex space-x-6 text-gray-700">
-          <li>
-            <Link href="#home" className="hover:text-blue-500">Home</Link>
-          </li>
-          <li>
-            <Link href="#about" className="hover:text-blue-500">About</Link>
-          </li>
-          <li>
-            <Link href="#services" className="hover:text-blue-500">Services</Link>
-          </li>
-          <li>
-            <Link href="#contact" className="hover:text-blue-500">Contact</Link>
-          </li>
-        </ul>
+        {/* Menu Navigasi - Dipindahkan ke tengah */}
+        <div className="absolute left-1/2 transform -translate-x-1/2">
+          <ul className="hidden md:flex space-x-6 text-gray-700">
+            <li>
+              <Link href="/" className="hover:text-blue-500 transition-colors">Home</Link>
+            </li>
+            <li>
+              <Link href="/about" className="hover:text-blue-500 transition-colors">About</Link>
+            </li>
+            <li>
+              <Link href="#services" className="hover:text-blue-500 transition-colors">Services</Link>
+            </li>
+            <li>
+              <Link href="/contact" className="hover:text-blue-500 transition-colors">Contact</Link>
+            </li>
+          </ul>
+        </div>
 
         {/* Button Login dengan Link */}
         <Link href="/auth/login">

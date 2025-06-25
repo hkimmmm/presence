@@ -1,11 +1,11 @@
 import {
+    UserGroupIcon,
     HomeIcon,
     DocumentTextIcon,
     CalendarIcon,
     UsersIcon,
     MapIcon,
     BriefcaseIcon,
-    UserCircleIcon,
     QrCodeIcon,
   } from '@heroicons/react/24/outline';
   
@@ -15,16 +15,21 @@ import {
       href: '/dashboard',
       icon: HomeIcon,
     },
+     {
+      name: 'User',
+      href: '/dashboard/user',
+      icon: UserGroupIcon,
+    },
+      {
+      name: 'Data Sales',
+      href: '/dashboard/employee',
+      icon: BriefcaseIcon,
+    },
     {
     name: 'Laporan',
     href: '/dashboard/laporan',
     icon: DocumentTextIcon,   
   },
-    {
-      name: 'Data Sales',
-      href: '/dashboard/employee',
-      icon: BriefcaseIcon,
-    },
     {
       name: 'Daftar Keahadiran',
       href: '/dashboard/presence',
@@ -44,11 +49,6 @@ import {
       name: 'Lokasi Kantor',
       href: '/dashboard/lokasi',
       icon: MapIcon,
-    },
-    {
-      name: 'Profile',
-      href: '/dashboard/profile',
-      icon: UserCircleIcon,
     },
   ];
   

@@ -1,6 +1,6 @@
 // app/middleware.ts
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
+import { jwtVerify } from 'jose';
 
 interface TokenPayload {
   user_id: number;
@@ -13,6 +13,9 @@ if (!JWT_SECRET) {
   throw new Error('JWT_SECRET is not defined in environment variables');
 }
 
+// jose expects a Uint8Array for the secret
+const secret = new TextEncoder().encode(JWT_SECRET);
+
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get('token')?.value;
 
@@ -23,8 +26,11 @@ export async function middleware(request: NextRequest) {
   }
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET) as TokenPayload;
+    const { payload } = await jwtVerify(token, secret);
     const { pathname } = request.nextUrl;
+
+    // Type assertion for payload
+    const decoded = payload as unknown as TokenPayload;
 
     if (pathname.startsWith('/dashboard') && decoded.role !== 'admin') {
       return NextResponse.redirect(

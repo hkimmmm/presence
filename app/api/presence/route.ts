@@ -59,7 +59,7 @@ async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
   const payload = verifyToken(token);
-  if (!payload) return null;
+  if (!payload) return null;  
   return { user: payload };
 }
 

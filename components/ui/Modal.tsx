@@ -52,9 +52,9 @@ const Modal: React.FC<ModalProps> = ({
               {confirmText}
             </button>
           )}
-          <button className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400" onClick={onClose}>
+          {/* <button className="px-4 py-2 bg-gray-300 text-gray-700 rounded hover:bg-gray-400" onClick={onClose}>
             Batal
-          </button>
+          </button> */}
         </div>
       </div>
     </div>
