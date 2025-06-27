@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model karyawan {
+  id                Int              @id @default(autoincrement())
+  user_id           Int              @unique(map: "user_id")
+  foto_profile      String?          @db.VarChar(255)
+  nik               String           @unique(map: "nik") @db.VarChar(20)
+  nama              String           @db.VarChar(100)
+  email             String           @unique(map: "email") @db.VarChar(100)
+  no_telepon        String           @db.VarChar(15)
+  alamat            String           @db.Text
+  tanggal_bergabung DateTime         @default(dbgenerated("(curdate())")) @db.Date
+  status            karyawan_status  @default(aktif)
+  users             users            @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "fk_karyawan_user")
+  leave_requests    leave_requests[]
+  presensi          presensi[]
+}
+
+model leave_requests {
+  id              Int                    @id @default(autoincrement())
+  karyawan_id     Int
+  jenis           leave_requests_jenis
+  tanggal_mulai   DateTime               @db.Date
+  tanggal_selesai DateTime               @db.Date
+  status          leave_requests_status? @default(pending)
+  keterangan      String?                @db.Text
+  foto_bukti      String?                @db.VarChar(255)
+  approved_by     Int?
+  created_at      DateTime?              @default(now()) @db.Timestamp(0)
+  updated_at      DateTime?              @default(now()) @db.Timestamp(0)
+  users           users?                 @relation(fields: [approved_by], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_approved_by")
+  karyawan        karyawan               @relation(fields: [karyawan_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "leave_requests_ibfk_1")
+
+  @@index([approved_by], map: "fk_approved_by")
+  @@index([karyawan_id], map: "karyawan_id")
+}
+
+model lokasi_kantor {
+  id           BigInt    @id @default(autoincrement())
+  nama_kantor  String    @db.VarChar(100)
+  latitude     Decimal   @db.Decimal(15, 12)
+  longitude    Decimal   @db.Decimal(15, 12)
+  radius_meter Int       @default(50)
+  created_at   DateTime? @default(now()) @db.Timestamp(0)
+  updated_at   DateTime? @default(now()) @db.Timestamp(0)
+}
+
+model presensi {
+  id            Int       @id @default(autoincrement())
+  karyawan_id   Int
+  tanggal       DateTime  @db.Date
+  checkin_time  DateTime? @db.DateTime(0)
+  checkout_time DateTime? @db.DateTime(0)
+  checkin_lat   Decimal?  @db.Decimal(10, 7)
+  checkin_lng   Decimal?  @db.Decimal(10, 7)
+  checkout_lat  Decimal?  @db.Decimal(10, 7)
+  checkout_lng  Decimal?  @db.Decimal(10, 7)
+  status        String    @db.VarChar(20)
+  keterangan    String?   @db.Text
+  created_at    DateTime? @default(now()) @db.Timestamp(0)
+  updated_at    DateTime? @default(now()) @db.Timestamp(0)
+  karyawan      karyawan  @relation(fields: [karyawan_id], references: [id], onDelete: NoAction, onUpdate: NoAction, map: "fk_presensi_karyawan")
+
+  @@index([karyawan_id], map: "fk_presensi_karyawan")
+}
+
+model qr_batches {
+  id         String          @id @db.VarChar(50)
+  type       qr_batches_type
+  created_at DateTime        @db.DateTime(0)
+  expires_at DateTime        @db.DateTime(0)
+  created_by Int?
+
+  @@index([created_by], map: "created_by")
+}
+
+model sessions {
+  id         Int       @id @default(autoincrement())
+  user_id    Int
+  token      String    @db.VarChar(255)
+  expires_at DateTime  @db.DateTime(0)
+  created_at DateTime? @default(now()) @db.Timestamp(0)
+  users      users     @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction, map: "sessions_ibfk_1")
+
+  @@index([user_id], map: "user_id")
+}
+
+model users {
+  id             Int              @id @default(autoincrement())
+  username       String           @unique(map: "username") @db.VarChar(50)
+  email          String           @unique(map: "email") @db.VarChar(255)
+  password       String           @db.VarChar(250)
+  role           users_role?
+  karyawan       karyawan?
+  leave_requests leave_requests[]
+  sessions       sessions[]
+}
+
+enum qr_batches_type {
+  checkin
+  checkout
+}
+
+enum leave_requests_jenis {
+  cuti
+  sakit
+  dinas
+}
+
+enum users_role {
+  admin
+  sales
+  supervisor
+  karyawan
+}
+
+enum leave_requests_status {
+  pending
+  approved
+  rejected
+}
+
+enum karyawan_status {
+  aktif
+  nonaktif
+}

@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { PhoneIcon } from "@heroicons/react/24/outline";
-import cleanImage from "@/assets/images/clean.jpg";
+import cvcitra from "@/assets/images/cvcitra2.jpg";
 
 export default function HeroSection() {
   return (
@@ -10,10 +10,10 @@ export default function HeroSection() {
       <div className="container mx-auto grid grid-cols-1 md:grid-cols-2 items-center px-6 sm:px-16 gap-10">
         <div className="flex flex-col gap-6 text-center md:text-left">
           <h1 className="text-4xl sm:text-5xl font-bold text-gray-900 leading-tight">
-            CV Citra Buana: Solusi Kesehatan & Kebersihan Terpercaya
+            CV Citra Buana – Solusi Tepat Kebutuhan Sehari-hari: Freshcare, Sikat Gigi & Lainnya
           </h1>
           <p className="text-lg text-gray-700 max-w-lg">
-            Sebagai distributor resmi, kami menyediakan produk berkualitas seperti FreshCare, Dr. White, dan berbagai minyak esensial untuk mendukung hidup sehat dan lingkungan bersih.
+            Kami hadir sebagai distributor terpercaya untuk produk-produk seperti FreshCare, Dr. White, sikat gigi, dan perlengkapan kebersihan lainnya yang mendukung kesehatan keluarga Anda.
           </p>
           <div className="flex gap-4 items-center justify-center md:justify-start flex-col sm:flex-row">
             <a
@@ -33,9 +33,9 @@ export default function HeroSection() {
         </div>
         <div className="flex justify-center">
           <Image
-            src={cleanImage}
+            src={cvcitra}
             alt="Produk CV Citra Buana"
-            width={500}
+            width={600}
             height={500}
             className="rounded-xl shadow-2xl transform hover:scale-105 transition-transform duration-300"
           />

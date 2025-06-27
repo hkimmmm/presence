@@ -8,7 +8,7 @@ export default function TopNav() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="bg-white shadow-md p-5 flex justify-between items-center w-full border-b">
+    <header className="bg-white shadow-md p-[34px] flex justify-between items-center w-full border-b">
       <div className="flex items-center space-x-4">
         {/* Tombol Toggle Sidebar hanya muncul di layar kecil */}
         <button 

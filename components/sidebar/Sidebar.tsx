@@ -1,11 +1,13 @@
 "use client";
+
+
 import Link from 'next/link';
 import { useSidebar } from '@/context/SidebarContext';
 import { useEffect, useState } from 'react';
 import { XMarkIcon } from '@heroicons/react/24/outline';
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-
+import CV from "@/assets/images/citra_buana_cemerlang1.png";
 // Impor sidebarItems untuk admin
 import { sidebarItems } from '@/config/sidebar';
 
@@ -94,12 +96,21 @@ export default function Sidebar() {
 >
   {/* Header Sidebar */}
   <div className="flex justify-between items-center text-black p-4 border-b mt-[22px]">
-    <h2 className="text-xl text-black font-bold">Citra Buana Cemerlang</h2>
-    <XMarkIcon
-      className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"
-      onClick={closeSidebar}
-    />
-  </div>
+      <div className="flex items-center gap-3">
+        <Image
+          src={CV}
+          alt="Logo Citra Buana"
+          width={40}
+          height={40}
+          className="object-contain"
+        />
+        <h2 className="text-xl text-black font-bold">Citra Buana Cemerlang</h2>
+      </div>
+      <XMarkIcon
+        className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"
+        onClick={closeSidebar}
+      />
+    </div>
 
   {/* Isi Sidebar */}
   <nav className="p-4 flex-1 overflow-y-auto">

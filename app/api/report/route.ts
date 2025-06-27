@@ -296,9 +296,13 @@ export async function GET(req: NextRequest) {
     });
 } else if (format === 'pdf') {
     const fontPath = path.resolve('public/fonts/Merriweather-Regular.ttf');
+    const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
 
     if (!fs.existsSync(fontPath)) {
         return NextResponse.json({ error: 'Font file tidak ditemukan' }, { status: 500 });
+    }
+    if (!fs.existsSync(logoPath)) {
+        console.warn('Logo file tidak ditemukan, akan dilanjutkan tanpa logo');
     }
 
     const doc = new PDFDocument({
@@ -318,19 +322,70 @@ export async function GET(req: NextRequest) {
         doc.font('Helvetica');
     }
 
-    // Header perusahaan
-    doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
-    doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
-    doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
+    // Header dengan logo dan judul
+    if (fs.existsSync(logoPath)) {
+        // Tambahkan logo di pojok kiri
+        doc.image(logoPath, 50, 30, { 
+            width: 60, 
+            height: 60,
+            align: 'center',
+            valign: 'center'
+        });
+        
+        // Judul perusahaan di sebelah kanan logo
+        doc.fontSize(18)
+          .fillColor('#2F5496')
+          .text('CV Citra Buana Cemerlang', 120, 40, { align: 'center' });
+          
+        // Subjudul di bawah judul perusahaan
+        doc.fontSize(14)
+          .fillColor('#333333')
+          .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 120, 65, { align: 'center' });
+    } else {
+        // Jika logo tidak ada, gunakan layout lama
+        doc.fontSize(18)
+          .fillColor('#2F5496')
+          .text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
+          
+        doc.fontSize(14)
+          .fillColor('#333333')
+          .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
+    }
+
+    // Garis pemisah
+    doc.lineWidth(1)
+      .moveTo(50, 90)
+      .lineTo(550, 90)
+      .stroke();
+      
     doc.moveDown(2);
 
     reportData.forEach((report, index) => {
         if (index > 0) {
             doc.addPage();
             // Repeat header on new page
-            doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
-            doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
-            doc.lineWidth(1).moveTo(50, 70).lineTo(550, 70).stroke();
+            if (fs.existsSync(logoPath)) {
+                doc.image(logoPath, 50, 30, { 
+                    width: 60, 
+                    height: 60,
+                    align: 'center',
+                    valign: 'center'
+                });
+                doc.fontSize(18)
+                  .fillColor('#2F5496')
+                  .text('CV Citra Buana Cemerlang', 120, 40, { align: 'center' });
+                doc.fontSize(14)
+                  .fillColor('#333333')
+                  .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 120, 65, { align: 'center' });
+            } else {
+                doc.fontSize(18)
+                  .fillColor('#2F5496')
+                  .text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
+                doc.fontSize(14)
+                  .fillColor('#333333')
+                  .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
+            }
+            doc.lineWidth(1).moveTo(50, 90).lineTo(550, 90).stroke();
             doc.moveDown(2);
         }
 
@@ -341,7 +396,7 @@ export async function GET(req: NextRequest) {
         doc.text(`Total Izin: ${report.total_izin}`, 50, doc.y + 10);
         doc.moveDown(2);
 
-        // Header tabel - PERBAIKAN DISINI
+        // Header tabel
         const tableTop = doc.y;
         const col1 = 50, col2 = 150, col3 = 250;
         const rowHeight = 20;
@@ -351,14 +406,14 @@ export async function GET(req: NextRequest) {
         
         // 2. Kemudian tambahkan teks di atasnya
         doc.fontSize(10)
-           .fillColor('#FFFFFF') // Teks putih
+           .fillColor('#FFFFFF')
            .text('Tanggal', col1, tableTop, { align: 'left', width: 100 })
            .text('Status', col2, tableTop, { align: 'center', width: 100 })
            .text('Keterangan', col3, tableTop, { align: 'left', width: 300 });
 
         doc.moveDown(1);
 
-        // Tabel isi - PERBAIKAN DISINI
+        // Tabel isi
         if (report.detail.length === 0) {
             console.log(`No data found for karyawan_id ${report.karyawan_id} in month ${bulan} ${tahun}`);
             doc.text('Tidak ada data absensi untuk periode ini.', col1, doc.y, { width: 500 });
@@ -367,13 +422,11 @@ export async function GET(req: NextRequest) {
             report.detail.forEach((item: any, i: number) => {
                 const rowTop = doc.y;
                 
-                // Gambar background terlebih dahulu (jika baris ganjil)
                 if (i % 2 === 0) {
                     doc.rect(col1 - 5, rowTop - 5, 500, rowHeight).fill('#F5F6F5');
                 }
                 
-                // Kemudian tambahkan teks
-                doc.fillColor('#333333') // Teks hitam
+                doc.fillColor('#333333')
                    .text(item.tanggal || 'Tidak ada', col1, rowTop, { align: 'left', width: 100 })
                    .text(item.status || 'Tidak ada', col2, rowTop, { align: 'center', width: 100 })
                    .text(item.keterangan || 'Tidak ada', col3, rowTop, { align: 'left', width: 300 });

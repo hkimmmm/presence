@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
 
   const { karyawan_id, role } = payload;
 
-  // Hanya karyawan yang bisa mengajukan cuti
+  // Hanya karyawan & sales yang bisa mengajukan cuti
   if (role !== 'karyawan' && role !== 'sales') {
     return NextResponse.json({ message: 'Akses ditolak: Hanya karyawan dan sales yang bisa mengajukan cuti' }, { status: 403, headers: corsHeaders() });
   }

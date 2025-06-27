@@ -104,11 +104,11 @@ export default function OfficeLocationsPage() {
   };
 
   const handleEditChange = (field: keyof LokasiKantor, value: string) => {
-    setEditData((prev) => ({
-      ...prev,
-      [field]: value,
-    }));
-  };
+  setEditData((prev) => ({
+    ...prev,
+    [field]: field === 'radius_meter' ? parseInt(value, 10) || 0 : value,
+  }));
+};
 
   const saveEditing = async (id: number) => {
     try {
@@ -126,8 +126,8 @@ export default function OfficeLocationsPage() {
       if (isNaN(lon) || lon < -180 || lon > 180) {
         throw new Error('Longitude harus antara -180 dan 180');
       }
-      if (typeof radius_meter !== 'number' || radius_meter <= 0) {
-        throw new Error('Radius harus berupa angka positif');
+      if (isNaN(radius_meter) || radius_meter <= 0 || !Number.isInteger(radius_meter)) {
+          throw new Error('Radius harus berupa angka bulat positif');
       }
 
       const response = await fetch(`/api/lokasi`, {

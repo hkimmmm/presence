@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       'flowbite.com', // Domain eksternal yang sudah ada
       //192.168.18.9 milik rumah
       //192.168.1.11 milik citra buana
+      //192.168.144.198 hp saya
       '192.168.18.9', // Tambahkan IP/domain server lokal Anda
       'localhost'     // Tambahkan localhost untuk development
     ],
