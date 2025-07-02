@@ -1,4 +1,4 @@
-import Karyawan from "../../../components/page/Karyawan"
+import Karyawan from "../../../components/page/Employee"
 export const metadata = {
     title: 'Daftar Sales',
     description: 'Daftar Sales',

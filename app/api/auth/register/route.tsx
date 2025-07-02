@@ -1,62 +1,128 @@
 import { NextResponse } from 'next/server';
-import { ResultSetHeader, RowDataPacket, FieldPacket } from 'mysql2/promise';
 import bcrypt from 'bcryptjs';
-import pool from '@/app/utils/db';
+import { prisma } from '@/app/utils/prisma';
+
+interface RegisterResponse {
+  message: string;
+  userId?: number;
+}
 
 export async function POST(request: Request) {
-    try {
-        const { username, email, password, role, nik, nama, no_telepon, alamat } = await request.json();
+  try {
+    const { username, email, password, role, nik, nama, no_telepon, alamat } = await request.json();
 
-        if (!username || !email || !password || !role) {
-            return NextResponse.json({ message: 'Semua data wajib diisi' }, { status: 400 });
+    if (!username || !email || !password || !role) {
+      return new NextResponse(
+        JSON.stringify({ message: 'Semua data wajib diisi' } as RegisterResponse),
+        {
+          status: 400,
+          headers: corsHeaders(),
         }
-
-        // Cek apakah email sudah digunakan
-        const [existingUsers]: [RowDataPacket[], FieldPacket[]] = await pool.query(
-            'SELECT id FROM users WHERE email = ?',
-            [email]
-        );
-
-        if (existingUsers.length > 0) {
-            return NextResponse.json({ message: 'Email sudah digunakan' }, { status: 400 });
-        }
-
-        const hashedPassword = await bcrypt.hash(password, 10);
-
-        // Insert ke tabel users
-        const [result]: [ResultSetHeader, FieldPacket[]] = await pool.query(
-            'INSERT INTO users (username, email, password, role) VALUES (?, ?, ?, ?)',
-            [username, email, hashedPassword, role]
-        );
-
-        const userId = result.insertId;
-
-        // Jika role adalah karyawan, tambahkan ke tabel karyawan
-        if (role === 'karyawan') {
-            if (!nik || !nama || !no_telepon || !alamat) {
-                return NextResponse.json({ message: 'Data karyawan wajib diisi' }, { status: 400 });
-            }
-
-            // Cek apakah NIK sudah terdaftar
-            const [existingKaryawan]: [RowDataPacket[], FieldPacket[]] = await pool.query(
-                'SELECT id FROM karyawan WHERE nik = ?',
-                [nik]
-            );
-
-            if (existingKaryawan.length > 0) {
-                return NextResponse.json({ message: 'NIK sudah terdaftar' }, { status: 400 });
-            }
-
-            await pool.query(
-                `INSERT INTO karyawan (user_id, nik, nama, email, no_telepon, alamat, status) 
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [userId, nik, nama, email, no_telepon, alamat, 'aktif']
-            );
-        }
-
-        return NextResponse.json({ message: 'User berhasil didaftarkan', userId });
-    } catch (error) {
-        console.error('Error Register:', error);
-        return NextResponse.json({ message: 'Terjadi kesalahan server' }, { status: 500 });
+      );
     }
+
+    // Cek apakah email sudah digunakan
+    const existingUser = await prisma.users.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      return new NextResponse(
+        JSON.stringify({ message: 'Email sudah digunakan' } as RegisterResponse),
+        {
+          status: 400,
+          headers: corsHeaders(),
+        }
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Insert ke tabel users
+    const user = await prisma.users.create({
+      data: {
+        username,
+        email,
+        password: hashedPassword,
+        role: role as 'admin' | 'sales' | 'supervisor' | 'karyawan',
+      },
+      select: { id: true },
+    });
+
+    const userId = user.id;
+
+    // Jika role adalah karyawan atau sales, tambahkan ke tabel karyawan
+    if (role === 'karyawan' || role === 'sales') {
+      if (!nik || !nama || !no_telepon || !alamat) {
+        return new NextResponse(
+          JSON.stringify({ message: 'Data karyawan wajib diisi' } as RegisterResponse),
+          {
+            status: 400,
+            headers: corsHeaders(),
+          }
+        );
+      }
+
+      // Cek apakah NIK sudah terdaftar
+      const existingKaryawan = await prisma.karyawan.findUnique({
+        where: { nik },
+        select: { id: true },
+      });
+
+      if (existingKaryawan) {
+        return new NextResponse(
+          JSON.stringify({ message: 'NIK sudah terdaftar' } as RegisterResponse),
+          {
+            status: 400,
+            headers: corsHeaders(),
+          }
+        );
+      }
+
+      await prisma.karyawan.create({
+        data: {
+          user_id: userId,
+          nik,
+          nama,
+          email,
+          no_telepon,
+          alamat,
+          status: 'aktif',
+        },
+      });
+    }
+
+    return new NextResponse(
+      JSON.stringify({ message: 'User berhasil didaftarkan', userId } as RegisterResponse),
+      {
+        status: 200,
+        headers: corsHeaders(),
+      }
+    );
+  } catch (error) {
+    console.error('Error saat registrasi:', error);
+    return new NextResponse(
+      JSON.stringify({ message: 'Terjadi kesalahan server' } as RegisterResponse),
+      {
+        status: 500,
+        headers: corsHeaders(),
+      }
+    );
+  }
+}
+
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Content-Type': 'application/json',
+  };
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    headers: corsHeaders(),
+  });
 }

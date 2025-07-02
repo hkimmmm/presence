@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import Button from "../ui/Button";
-// import CV from "@/assets/images/citra_buana_cemerlang.jpg";
-// import Image from "next/image";
+import CV from "@/public/cv.png";
+import Image from "next/image";
 
 const Navbar = () => {
   return (
@@ -11,14 +11,14 @@ const Navbar = () => {
       <div className="container mx-auto flex justify-between items-center">
         {/* Logo dan Nama Perusahaan */}
         <div className="flex items-center space-x-2">
-          {/* <div className="w-10 h-10 relative">
+          <div className="w-10 h-10 relative">
             <Image 
               src={CV} 
               alt="CV Citra Buana Cemerlang Logo"
               fill
               className="object-contain"
             />
-          </div> */}
+          </div>
           <h1 className="text-xl md:text-2xl font-bold text-gray-800">
             CV Citra Buana Cemerlang
           </h1>
@@ -34,7 +34,7 @@ const Navbar = () => {
               <Link href="/about" className="hover:text-blue-500 transition-colors">About</Link>
             </li>
             <li>
-              <Link href="#services" className="hover:text-blue-500 transition-colors">Services</Link>
+              <Link href="/services" className="hover:text-blue-500 transition-colors">Services</Link>
             </li>
             <li>
               <Link href="/contact" className="hover:text-blue-500 transition-colors">Contact</Link>
