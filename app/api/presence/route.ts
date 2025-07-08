@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import pool from '@/app/utils/db';
+import { prisma } from '@/app/utils/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -59,7 +59,7 @@ async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   const token = getTokenFromRequest(req);
   if (!token) return null;
   const payload = verifyToken(token);
-  if (!payload) return null;  
+  if (!payload) return null;
   return { user: payload };
 }
 
@@ -75,16 +75,20 @@ export async function GET(req: NextRequest) {
   }
 
   try {
-    const { karyawan_id, role } = auth.user; // Assume JWT payload contains karyawan_id and role
-    let rows;
+    const { karyawan_id, role } = auth.user;
 
+    let presensi;
     if (['admin', 'supervisor'].includes(role)) {
       // Admin or Supervisor: Fetch all presence data
-      [rows] = await pool.query(`
-        SELECT p.*, k.nama AS karyawan_nama 
-        FROM presensi p 
-        LEFT JOIN karyawan k ON p.karyawan_id = k.id
-      `);
+      presensi = await prisma.presensi.findMany({
+        include: {
+          karyawan: {
+            select: {
+              nama: true,
+            },
+          },
+        },
+      });
     } else {
       // Non-admin/supervisor: Fetch presence data only for the user's karyawan_id
       if (!karyawan_id) {
@@ -93,15 +97,25 @@ export async function GET(req: NextRequest) {
           headers,
         });
       }
-      [rows] = await pool.query(`
-        SELECT p.*, k.nama AS karyawan_nama 
-        FROM presensi p 
-        LEFT JOIN karyawan k ON p.karyawan_id = k.id 
-        WHERE p.karyawan_id = ?
-      `, [karyawan_id]);
+      presensi = await prisma.presensi.findMany({
+        where: { karyawan_id },
+        include: {
+          karyawan: {
+            select: {
+              nama: true,
+            },
+          },
+        },
+      });
     }
 
-    return new NextResponse(JSON.stringify(rows), { status: 200, headers });
+    // Map the data to match the original response format
+    const formattedPresensi = presensi.map(p => ({
+      ...p,
+      karyawan_nama: p.karyawan?.nama,
+    }));
+
+    return new NextResponse(JSON.stringify(formattedPresensi), { status: 200, headers });
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : String(error);
     return new NextResponse(
@@ -153,16 +167,18 @@ export async function POST(req: NextRequest) {
       hour12: false,
     }).replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2');
     const tanggalFormatted = now.split(' ')[0];
-    const datetimeCheckin = now;
+    const datetimeCheckin = new Date(now);
 
-    console.log('⏰ Server time (WIB):', datetimeCheckin);
+    // Check for existing presensi
+    const existingPresensi = await prisma.presensi.findFirst({
+      where: {
+        karyawan_id,
+        tanggal: new Date(tanggalFormatted),
+        checkout_time: null,
+      },
+    });
 
-    const [existingPresensi]: any = await pool.query(
-      `SELECT id FROM presensi WHERE karyawan_id = ? AND tanggal = ? AND checkout_time IS NULL LIMIT 1`,
-      [karyawan_id, tanggalFormatted]
-    );
-
-    if (existingPresensi.length > 0) {
+    if (existingPresensi) {
       return new NextResponse(
         JSON.stringify({ message: 'Anda sudah check-in hari ini dan belum check-out' }),
         { status: 400, headers }
@@ -181,16 +197,15 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const [kantorRows]: any = await pool.query('SELECT * FROM lokasi_kantor LIMIT 1');
-      if (kantorRows.length === 0) {
+      const kantor = await prisma.lokasi_kantor.findFirst();
+      if (!kantor) {
         return new NextResponse(
           JSON.stringify({ message: 'Lokasi kantor belum di-set' }),
           { status: 400, headers }
         );
       }
 
-      const kantor = kantorRows[0];
-      const jarak = hitungJarak(checkin_lat, checkin_lng, kantor.latitude, kantor.longitude);
+      const jarak = hitungJarak(checkin_lat, checkin_lng, Number(kantor.latitude), Number(kantor.longitude));
       if (jarak > kantor.radius_meter) {
         return new NextResponse(
           JSON.stringify({
@@ -202,7 +217,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      keterangan = `Presensi QR Code - Lokasi: ${kantor.nama || 'Kantor'} (lat: ${checkin_lat}, lng: ${checkin_lng})`;
+      keterangan = `Presensi QR Code - Lokasi: ${kantor.nama_kantor || 'Kantor'} (lat: ${checkin_lat}, lng: ${checkin_lng})`;
     } else if (status === 'cuti' || status === 'izin') {
       keterangan = `Presensi ${status.toUpperCase()} - Tanpa lokasi`;
       validatedLat = 0;
@@ -214,16 +229,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const [result]: any = await pool.query(
-      `INSERT INTO presensi (karyawan_id, tanggal, checkin_time, checkin_lat, checkin_lng, status, keterangan, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
-      [karyawan_id, tanggalFormatted, datetimeCheckin, validatedLat, validatedLng, status, keterangan]
-    );
+    const newPresensi = await prisma.presensi.create({
+      data: {
+        karyawan_id,
+        tanggal: new Date(tanggalFormatted),
+        checkin_time: datetimeCheckin,
+        checkin_lat: validatedLat ? Number(validatedLat) : null,
+        checkin_lng: validatedLng ? Number(validatedLng) : null,
+        status,
+        keterangan,
+        created_at: new Date(),
+        updated_at: new Date(),
+      },
+    });
 
     return new NextResponse(
       JSON.stringify({
         message: `Check-in ${status} berhasil`,
-        presensi_id: result.insertId,
+        presensi_id: newPresensi.id,
       }),
       { status: 201, headers }
     );

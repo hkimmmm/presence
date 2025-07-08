@@ -4,10 +4,9 @@ export const runtime = 'nodejs';
 import { NextRequest, NextResponse } from 'next/server';
 import PDFDocument from 'pdfkit';
 import ExcelJS from 'exceljs';
-import pool from '@/app/utils/db';
+import { prisma } from '@/app/utils/prisma';
 import fs from 'fs';
 import path from 'path';
-import { RowDataPacket } from 'mysql2/promise';
 
 // Array untuk mapping bulan ke nama bulan dalam bahasa Indonesia
 const monthNames = [
@@ -40,54 +39,56 @@ export async function GET(req: NextRequest) {
     let penyusunName = 'Penyusun Tidak Diketahui';
     if (admin_username) {
       console.log(`Received admin_username: "${admin_username}"`);
-      try {
-        const [adminRows] = await pool.query<RowDataPacket[]>(
-          'SELECT username FROM users WHERE LOWER(username) = LOWER(?) AND role = ? LIMIT 1',
-          [admin_username, 'admin']
-        );
-        if (adminRows.length > 0) {
-          penyusunName = adminRows[0].username;
-          console.log(`Admin username found: "${penyusunName}"`);
-        } else {
-          console.warn(`Admin username "${admin_username}" tidak ditemukan atau bukan admin`);
-        }
-      } catch (adminError) {
-        console.error('Failed to fetch admin username:', (adminError as Error).message);
+      const admin = await prisma.users.findFirst({
+        where: {
+          username: admin_username,
+          role: 'admin',
+        },
+        select: { username: true },
+      });
+      if (admin) {
+        penyusunName = admin.username;
+        console.log(`Admin username found: "${penyusunName}"`);
+      } else {
+        console.warn(`Admin username "${admin_username}" tidak ditemukan atau bukan admin`);
       }
     } else {
       console.warn('No admin_username provided; attempting to fetch any admin');
-      try {
-        const [adminRows] = await pool.query<RowDataPacket[]>('SELECT username FROM users WHERE role = ? LIMIT 1', ['admin']);
-        if (adminRows.length > 0) {
-          penyusunName = adminRows[0].username;
-          console.log(`Fallback admin username found: "${penyusunName}"`);
-        } else {
-          console.warn('No admin users found in database');
-        }
-      } catch (adminError) {
-        console.error('Failed to fetch fallback admin username:', (adminError as Error).message);
+      const admin = await prisma.users.findFirst({
+        where: { role: 'admin' },
+        select: { username: true },
+      });
+      if (admin) {
+        penyusunName = admin.username;
+        console.log(`Fallback admin username found: "${penyusunName}"`);
+      } else {
+        console.warn('No admin users found in database');
       }
     }
 
     // Ambil username supervisor
     let supervisorName = 'Supervisor Tidak Diketahui';
-    try {
-      const [supervisorRows] = await pool.query<RowDataPacket[]>('SELECT username FROM users WHERE role = ? LIMIT 1', ['supervisor']);
-      if (supervisorRows.length > 0) {
-        supervisorName = supervisorRows[0].username;
-      }
+    const supervisor = await prisma.users.findFirst({
+      where: { role: 'supervisor' },
+      select: { username: true },
+    });
+    if (supervisor) {
+      supervisorName = supervisor.username;
       console.log('Supervisor username:', supervisorName);
-    } catch (supervisorError) {
-      console.error('Failed to fetch supervisor username:', (supervisorError as Error).message);
+    } else {
+      console.warn('No supervisor users found in database');
     }
 
     // Ambil daftar karyawan
     if (scope === 'all') {
-      const [karyawanRows] = await pool.query('SELECT id, nama FROM karyawan');
-      karyawanList = karyawanRows as { id: number; nama: string }[];
+      karyawanList = await prisma.karyawan.findMany({
+        select: { id: true, nama: true },
+      });
     } else {
-      const [karyawanRows] = await pool.query('SELECT id, nama FROM karyawan WHERE id = ?', [karyawan_id]);
-      const karyawan = (karyawanRows as { id: number; nama: string }[])[0];
+      const karyawan = await prisma.karyawan.findFirst({
+        where: { id: karyawan_id },
+        select: { id: true, nama: true },
+      });
       if (!karyawan) {
         return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 404 });
       }
@@ -97,33 +98,54 @@ export async function GET(req: NextRequest) {
     // Loop untuk setiap karyawan
     for (const karyawan of karyawanList) {
       // 1. Ambil presensi
-      const [presensiRows] = await pool.query(
-        `SELECT tanggal, status, keterangan
-         FROM presensi
-         WHERE karyawan_id = ? 
-           AND MONTH(tanggal) = ? 
-           AND YEAR(tanggal) = ?`,
-        [karyawan.id, bulan, tahun]
-      );
+      const presensiRows = await prisma.presensi.findMany({
+        where: {
+          karyawan_id: karyawan.id,
+          tanggal: {
+            gte: new Date(tahun, bulan - 1, 1),
+            lte: new Date(tahun, bulan - 1, new Date(tahun, bulan, 0).getDate()),
+          },
+        },
+        select: {
+          tanggal: true,
+          status: true,
+          keterangan: true,
+        },
+      });
       console.log(`Presensi rows for karyawan_id ${karyawan.id}:`, JSON.stringify(presensiRows, null, 2));
 
       // 2. Ambil leave_requests yang disetujui
-      const [izinRows] = await pool.query(
-        `SELECT tanggal_mulai, tanggal_selesai, jenis, keterangan
-         FROM leave_requests
-         WHERE karyawan_id = ? AND status = 'approved'
-         AND (
-           (MONTH(tanggal_mulai) = ? AND YEAR(tanggal_mulai) = ?)
-           OR
-           (MONTH(tanggal_selesai) = ? AND YEAR(tanggal_selesai) = ?)
-         )`,
-        [karyawan.id, bulan, tahun, bulan, tahun]
-      );
+      const izinRows = await prisma.leave_requests.findMany({
+        where: {
+          karyawan_id: karyawan.id,
+          status: 'approved',
+          OR: [
+            {
+              tanggal_mulai: {
+                gte: new Date(tahun, bulan - 1, 1),
+                lte: new Date(tahun, bulan - 1, new Date(tahun, bulan, 0).getDate()),
+              },
+            },
+            {
+              tanggal_selesai: {
+                gte: new Date(tahun, bulan - 1, 1),
+                lte: new Date(tahun, bulan - 1, new Date(tahun, bulan, 0).getDate()),
+              },
+            },
+          ],
+        },
+        select: {
+          tanggal_mulai: true,
+          tanggal_selesai: true,
+          jenis: true,
+          keterangan: true,
+        },
+      });
       console.log(`Izin rows for karyawan_id ${karyawan.id}:`, JSON.stringify(izinRows, null, 2));
 
       // 3. Expand range tanggal dari izin
       const izinExpanded: { tanggal: string; status: string; keterangan: string }[] = [];
-      for (const item of izinRows as any[]) {
+      for (const item of izinRows) {
         const start = new Date(item.tanggal_mulai);
         const end = new Date(item.tanggal_selesai);
 
@@ -142,9 +164,9 @@ export async function GET(req: NextRequest) {
       izinExpanded.forEach((row) => {
         byTanggal[row.tanggal] = row;
       });
-      (presensiRows as any[]).forEach((row) => {
-        byTanggal[row.tanggal] = {
-          tanggal: row.tanggal instanceof Date ? row.tanggal.toISOString().split('T')[0] : row.tanggal,
+      presensiRows.forEach((row) => {
+        byTanggal[row.tanggal.toISOString().split('T')[0]] = {
+          tanggal: row.tanggal.toISOString().split('T')[0],
           status: row.status || '-',
           keterangan: row.keterangan || '-',
         };
@@ -325,13 +347,6 @@ export async function GET(req: NextRequest) {
         }
       });
 
-      // Format semua cell tanggal
-      worksheet.getColumn(3).eachCell((cell) => {
-        if (cell.value && cell.value.toString().match(/^\d{4}-\d{2}-\d{2}$/)) {
-          cell.numFmt = 'dd-mmm-yyyy';
-        }
-      });
-
       // Tambahkan baris kosong setelah data
       worksheet.addRow([]);
 
@@ -412,7 +427,7 @@ export async function GET(req: NextRequest) {
         }
 
         // Header dengan logo
-        doc.image('public/images/citra_buana_cemerlang1.png', 50, 20, { width: 50 });
+        doc.image(logoPath, 50, 20, { width: 50 });
         doc.fontSize(18).fillColor('#2F5496').text('CV Citra Buana Cemerlang', 50, 30, { align: 'center', width: 500 });
         doc.fontSize(14).fillColor('#333333').text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center', width: 500 });
         doc.lineWidth(1).moveTo(50, 80).lineTo(550, 80).stroke();
@@ -520,7 +535,10 @@ export async function GET(req: NextRequest) {
     // Default: JSON
     return NextResponse.json(scope === 'single' ? reportData[0] : reportData);
   } catch (error) {
-    console.error('❌ Gagal mengambil laporan:', error);
-    return NextResponse.json({ error: 'Gagal mengambil data', details: (error as Error).message }, { status: 500 });
+    console.error('❌ Gagal mengambil laporan:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+    });
+    return NextResponse.json({ error: 'Gagal mengambil data', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
-import pool from '@/app/utils/db';
-import { RowDataPacket } from 'mysql2';
+import { prisma } from '@/app/utils/prisma';
+import { Decimal } from '@prisma/client/runtime/library';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
@@ -38,14 +38,16 @@ function verifyToken(token: string): JwtPayload | null {
   }
 }
 
-function hitungJarak(lat1: number, lng1: number, lat2: number, lng2: number): number {
+function hitungJarak(lat1: number, lng1: number, lat2: Decimal, lng2: Decimal): number {
   const toRad = (value: number) => (value * Math.PI) / 180;
   const earthRadius = 6371000;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
+  const lat2Num = lat2.toNumber();
+  const lng2Num = lng2.toNumber();
+  const dLat = toRad(lat2Num - lat1);
+  const dLng = toRad(lng2Num - lng1);
   const a =
     Math.sin(dLat / 2) ** 2 +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLng / 2) ** 2;
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2Num)) * Math.sin(dLng / 2) ** 2;
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return earthRadius * c;
 }
@@ -68,10 +70,12 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let body: any = null;
   try {
-    const body = await req.json();
+    body = await req.json();
     console.log('📥 Request body:', body);
-    const { batchId, presensiId, type, checkout_time, checkout_lat, checkout_lng } = body;
+    const { batchId, presensiId, type, checkout_lat, checkout_lng } = body;
 
     if (type !== 'checkout') {
       return new NextResponse(JSON.stringify({ message: 'Jenis QR tidak valid' }), {
@@ -80,29 +84,24 @@ export async function POST(req: NextRequest) {
     }
 
     // Gunakan waktu WIB untuk hari saat ini
-    const now = new Date().toLocaleString('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2');
-    const tanggalFormatted = now.split(' ')[0];
+    const now = new Date();
+    const datetimeCheckout = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
+    const tanggalFormatted = datetimeCheckout.toISOString().split('T')[0]; // YYYY-MM-DD
 
     const karyawan_id = auth.user.karyawan_id;
-    let presensi: RowDataPacket;
+    let presensi;
 
     // Validasi QR code
     if (batchId) {
       // QR massal
-      const [batchRows] = await pool.query<RowDataPacket[]>(
-        'SELECT id, expires_at FROM qr_batches WHERE id = ? AND type = ? AND expires_at IS NOT NULL AND expires_at > NOW()',
-        [batchId, type]
-      );
-      if (!batchRows || batchRows.length === 0) {
+      const batch = await prisma.qr_batches.findFirst({
+        where: {
+          id: batchId,
+          type: type,
+          expires_at: { gt: new Date() },
+        },
+      });
+      if (!batch) {
         return new NextResponse(
           JSON.stringify({ message: 'QR code tidak valid atau kedaluwarsa' }),
           { status: 400, headers }
@@ -110,30 +109,35 @@ export async function POST(req: NextRequest) {
       }
 
       // Cari presensi aktif untuk hari ini
-      const [presensiRows] = await pool.query<RowDataPacket[]>(
-        'SELECT id, status, tanggal FROM presensi WHERE karyawan_id = ? AND checkout_time IS NULL AND tanggal = ? LIMIT 1',
-        [karyawan_id, tanggalFormatted]
-      );
-      if (!presensiRows || presensiRows.length === 0) {
+      presensi = await prisma.presensi.findFirst({
+        where: {
+          karyawan_id: parseInt(karyawan_id),
+          tanggal: new Date(tanggalFormatted),
+          checkout_time: null,
+        },
+      });
+      if (!presensi) {
         return new NextResponse(
           JSON.stringify({ message: 'Tidak ada presensi aktif untuk hari ini. Silakan check-in terlebih dahulu.' }),
           { status: 400, headers }
         );
       }
-      presensi = presensiRows[0];
     } else if (presensiId) {
       // QR perorangan
-      const [presensiRows] = await pool.query<RowDataPacket[]>(
-        'SELECT id, status, tanggal, karyawan_id FROM presensi WHERE id = ? AND karyawan_id = ? AND checkout_time IS NULL AND tanggal = ? LIMIT 1',
-        [presensiId, karyawan_id, tanggalFormatted]
-      );
-      if (!presensiRows || presensiRows.length === 0) {
+      presensi = await prisma.presensi.findFirst({
+        where: {
+          id: parseInt(presensiId),
+          karyawan_id: parseInt(karyawan_id),
+          tanggal: new Date(tanggalFormatted),
+          checkout_time: null,
+        },
+      });
+      if (!presensi) {
         return new NextResponse(
           JSON.stringify({ message: 'Presensi tidak ditemukan, sudah check-out, atau bukan untuk hari ini.' }),
           { status: 400, headers }
         );
       }
-      presensi = presensiRows[0];
     } else {
       return new NextResponse(
         JSON.stringify({ message: 'batchId atau presensiId wajib diisi' }),
@@ -143,10 +147,6 @@ export async function POST(req: NextRequest) {
 
     const presensiIdFinal = presensi.id;
     const presensiStatus = presensi.status;
-
-    // Gunakan checkout_time dari klien atau waktu server
-    const datetimeCheckout = checkout_time || now;
-    console.log('⏰ Waktu check-out (WIB):', datetimeCheckout);
 
     let keterangan = '';
     let validatedLat = checkout_lat;
@@ -160,15 +160,14 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const [kantorRows] = await pool.query<RowDataPacket[]>('SELECT * FROM lokasi_kantor LIMIT 1');
-      if (!kantorRows || kantorRows.length === 0) {
+      const kantor = await prisma.lokasi_kantor.findFirst();
+      if (!kantor) {
         return new NextResponse(
           JSON.stringify({ message: 'Lokasi kantor belum ditetapkan' }),
           { status: 500, headers }
         );
       }
 
-      const kantor = kantorRows[0];
       const jarak = hitungJarak(checkout_lat, checkout_lng, kantor.latitude, kantor.longitude);
       if (jarak > kantor.radius_meter) {
         return new NextResponse(
@@ -181,24 +180,37 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      keterangan = `Check-out QR Code - Lokasi: ${kantor.nama || 'Kantor'} (lat: ${checkout_lat}, lng: ${checkout_lng})`;
+      keterangan = `Check-out QR Code - Lokasi: ${kantor.nama_kantor || 'Kantor'} (lat: ${checkout_lat}, lng: ${checkout_lng})`;
     } else {
       keterangan = `Check-out ${presensiStatus.toUpperCase()}`;
       validatedLat = null;
       validatedLng = null;
     }
 
-    await pool.query(
-      'UPDATE presensi SET checkout_time = ?, checkout_lat = ?, checkout_lng = ?, keterangan = CONCAT(keterangan, "\n", ?), updated_at = NOW() WHERE id = ?',
-      [datetimeCheckout, validatedLat, validatedLng, keterangan, presensiIdFinal]
-    );
+    // Update presensi dengan Prisma
+    await prisma.presensi.update({
+      where: { id: presensiIdFinal },
+      data: {
+        checkout_time: datetimeCheckout,
+        checkout_lat: validatedLat,
+        checkout_lng: validatedLng,
+        keterangan: {
+          set: presensi.keterangan + '\n' + keterangan,
+        },
+        updated_at: new Date(),
+      },
+    });
 
     return new NextResponse(
       JSON.stringify({ message: 'Check-out berhasil', presensiId: presensiIdFinal }),
       { status: 200, headers }
     );
   } catch (error: unknown) {
-    console.error('Gagal melakukan check-out:', error);
+    console.error('Gagal melakukan check-out:', {
+      message: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined,
+      requestBody: body,
+    });
     const errorMessage = error instanceof Error ? error.message : 'Terjadi kesalahan server';
     return new NextResponse(
       JSON.stringify({ message: 'Gagal melakukan check-out', error: errorMessage }),
