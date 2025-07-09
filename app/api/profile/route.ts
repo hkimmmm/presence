@@ -1,29 +1,13 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
-import pool from '@/app/utils/db';
 import jwt from 'jsonwebtoken';
 import fs from 'fs/promises';
 import path from 'path';
-import { RowDataPacket, ResultSetHeader } from 'mysql2/promise';
+import { prisma } from '@/app/utils/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'your_jwt_secret_key';
 const UPLOAD_DIR = path.join(process.cwd(), 'public', 'uploads', 'profiles');
 const BASE_URL = '/uploads/profiles';
-
-interface UserProfile extends RowDataPacket {
-  user_id: number;
-  username: string;
-  email: string;
-  role: string;
-  karyawan_id?: number;
-  nama?: string;
-  foto_profile?: string;
-  no_telepon?: string;
-  nik?: string;
-  alamat?: string;
-  status?: string;
-  tanggal_bergabung?: string;
-}
 
 function corsHeaders() {
   return {
@@ -61,57 +45,47 @@ async function authorize(req: NextRequest): Promise<{ user: any } | null> {
   return { user: payload };
 }
 
-async function handleFileUpload(fileData: string | null, existingFotoProfile: string | null): Promise<string | null> {
+async function handleFileUpload(
+  fileData: string | null,
+  existingFotoProfile: string | null
+): Promise<string | null> {
   if (!fileData || !fileData.startsWith('data:image')) return existingFotoProfile;
 
-  try {
-    const matches = fileData.match(/^data:image\/(\w+);base64,(.+)$/);
-    if (!matches || matches.length !== 3) throw new Error('Format base64 gambar tidak valid');
+  const matches = fileData.match(/^data:image\/(\w+);base64,(.+)$/);
+  if (!matches || matches.length !== 3) throw new Error('Format base64 gambar tidak valid');
 
-    const imageType = matches[1];
-    const base64Data = matches[2];
+  const imageType = matches[1];
+  const base64Data = matches[2];
 
-    // Validasi tipe file
-    const allowedTypes = ['jpeg', 'png', 'gif', 'webp'];
-    if (!allowedTypes.includes(imageType)) {
-      throw new Error('Format file tidak didukung. Harap unggah gambar (JPEG, PNG, GIF, atau WebP)');
-    }
-
-    // Validasi ukuran file (max 2MB)
-    const buffer = Buffer.from(base64Data, 'base64');
-    const maxSize = 2 * 1024 * 1024;
-    if (buffer.length > maxSize) {
-      throw new Error('Ukuran file terlalu besar. Maksimal 2MB');
-    }
-
-    // Buat nama file unik
-    const timestamp = Date.now();
-    const filename = `profile_${timestamp}.${imageType}`;
-    const filePath = path.join(UPLOAD_DIR, filename);
-
-    // Buat direktori jika belum ada
-    await fs.mkdir(UPLOAD_DIR, { recursive: true });
-
-    // Simpan file baru
-    await fs.writeFile(filePath, buffer);
-
-    // Hapus file lama jika ada
-    if (existingFotoProfile) {
-      const oldFilePath = path.join(process.cwd(), 'public', existingFotoProfile);
-      try {
-        await fs.access(oldFilePath);
-        await fs.unlink(oldFilePath);
-      } catch {
-        // File lama tidak ada, lanjutkan tanpa error
-        console.warn('File lama tidak ditemukan:', oldFilePath);
-      }
-    }
-
-    return `${BASE_URL}/${filename}`;
-  } catch (error) {
-    console.error('File upload error:', error);
-    throw error;
+  const allowedTypes = ['jpeg', 'png', 'gif', 'webp'];
+  if (!allowedTypes.includes(imageType)) {
+    throw new Error('Format file tidak didukung. Harap unggah gambar (JPEG, PNG, GIF, atau WebP)');
   }
+
+  const buffer = Buffer.from(base64Data, 'base64');
+  const maxSize = 2 * 1024 * 1024;
+  if (buffer.length > maxSize) {
+    throw new Error('Ukuran file terlalu besar. Maksimal 2MB');
+  }
+
+  const timestamp = Date.now();
+  const filename = `profile_${timestamp}.${imageType}`;
+  const filePath = path.join(UPLOAD_DIR, filename);
+
+  await fs.mkdir(UPLOAD_DIR, { recursive: true });
+  await fs.writeFile(filePath, buffer);
+
+  if (existingFotoProfile) {
+    const oldFilePath = path.join(process.cwd(), 'public', existingFotoProfile);
+    try {
+      await fs.access(oldFilePath);
+      await fs.unlink(oldFilePath);
+    } catch {
+      console.warn('File lama tidak ditemukan:', oldFilePath);
+    }
+  }
+
+  return `${BASE_URL}/${filename}`;
 }
 
 export async function GET(req: NextRequest) {
@@ -124,86 +98,50 @@ export async function GET(req: NextRequest) {
   try {
     const { user_id, role } = auth.user;
 
-    // Ambil data profil dari tabel users dan karyawan
-    const [userRows] = await pool.query<UserProfile[]>(
-      `SELECT 
-        u.id AS user_id,
-        u.username,
-        u.email,
-        u.role,
-        k.id AS karyawan_id,
-        k.nama,
-        k.foto_profile,
-        k.no_telepon,
-        k.nik,
-        k.alamat,
-        k.status,
-        k.tanggal_bergabung
-      FROM users u
-      LEFT JOIN karyawan k ON u.id = k.user_id
-      WHERE u.id = ?`,
-      [user_id]
-    );
+    const userProfile = await prisma.users.findUnique({
+      where: { id: user_id },
+      include: { karyawan: true }
+    });
 
-    if (!userRows.length) {
+    if (!userProfile) {
       return new NextResponse(JSON.stringify({ message: 'Pengguna tidak ditemukan' }), { status: 404, headers });
     }
 
-    const userProfile = userRows[0];
+    const user = {
+      user_id: userProfile.id,
+      username: userProfile.username,
+      email: userProfile.email,
+      role: userProfile.role,
+      karyawan_id: userProfile.karyawan?.id,
+      nama: userProfile.karyawan?.nama,
+      foto_profile: userProfile.karyawan?.foto_profile,
+      no_telepon: userProfile.karyawan?.no_telepon,
+      nik: userProfile.karyawan?.nik,
+      alamat: userProfile.karyawan?.alamat,
+      status: userProfile.karyawan?.status,
+      tanggal_bergabung: userProfile.karyawan?.tanggal_bergabung
+    };
+
     const additionalData: any = {};
 
-    // Tambahkan data khusus untuk karyawan
-    if (role === 'karyawan' && userProfile.karyawan_id) {
-      const [leaveRequests] = await pool.query<RowDataPacket[]>(
-        `SELECT 
-          id AS leave_id,
-          jenis,
-          tanggal_mulai,
-          tanggal_selesai,
-          status AS status_pengajuan,
-          keterangan,
-          foto_bukti
-        FROM leave_requests
-        WHERE karyawan_id = ?
-        ORDER BY tanggal_mulai DESC
-        LIMIT 5`,
-        [userProfile.karyawan_id]
-      );
-      additionalData.leave_requests = leaveRequests;
+    if (role === 'karyawan' && user.karyawan_id) {
+      additionalData.leave_requests = await prisma.leave_requests.findMany({
+        where: { karyawan_id: user.karyawan_id },
+        orderBy: { tanggal_mulai: 'desc' },
+        take: 5
+      });
 
-      const [presensi] = await pool.query<RowDataPacket[]>(
-        `SELECT 
-          tanggal,
-          checkin_time,
-          checkout_time,
-          status,
-          keterangan
-        FROM presensi
-        WHERE karyawan_id = ?
-        ORDER BY tanggal DESC
-        LIMIT 5`,
-        [userProfile.karyawan_id]
-      );
-      additionalData.presensi = presensi;
-    }
-
-    // Tambahkan data khusus untuk supervisor
-    if (role === 'supervisor') {
-      const [supervisedEmployees] = await pool.query<RowDataPacket[]>(
-        `SELECT 
-          k.id AS karyawan_id,
-          k.nama
-        FROM karyawan k
-        WHERE k.supervisor_id = ?`,
-        [userProfile.karyawan_id || user_id]
-      );
-      additionalData.supervised_employees = supervisedEmployees;
+      additionalData.presensi = await prisma.presensi.findMany({
+        where: { karyawan_id: user.karyawan_id },
+        orderBy: { tanggal: 'desc' },
+        take: 5
+      });
     }
 
     return new NextResponse(
       JSON.stringify({
         message: 'Data profil berhasil diambil',
-        user: userProfile,
+        user,
         ...additionalData,
       }),
       { status: 200, headers }
@@ -224,63 +162,52 @@ export async function PUT(req: NextRequest) {
     return new NextResponse(JSON.stringify({ message: 'Tidak diizinkan' }), { status: 401, headers });
   }
 
-  const connection = await pool.getConnection();
-  await connection.beginTransaction();
-
   try {
     const { user_id, role, karyawan_id } = auth.user;
     const data = await req.json();
     const { email, username, nama, foto_profile, no_telepon, alamat } = data;
 
-    // Validasi email unik
     if (email) {
-      const [existingEmail] = await connection.query<RowDataPacket[]>(
-        'SELECT id FROM users WHERE email = ? AND id != ?',
-        [email, user_id]
-      );
-      if (existingEmail.length > 0) {
-        connection.release();
+      const existingEmail = await prisma.users.findFirst({
+        where: {
+          email,
+          NOT: { id: user_id }
+        }
+      });
+      if (existingEmail) {
         return new NextResponse(JSON.stringify({ message: 'Email sudah digunakan' }), { status: 400, headers });
       }
     }
 
-    // Ambil foto profil lama untuk karyawan
     let existingFotoProfile: string | null = null;
     if (role === 'karyawan' && karyawan_id) {
-      const [existingData] = await connection.query<RowDataPacket[]>(
-        'SELECT foto_profile FROM karyawan WHERE id = ?',
-        [karyawan_id]
-      );
-      existingFotoProfile = existingData.length > 0 ? existingData[0].foto_profile : null;
+      const karyawan = await prisma.karyawan.findUnique({ where: { id: karyawan_id } });
+      existingFotoProfile = karyawan?.foto_profile || null;
     }
 
-    // Tangani unggahan foto profil
     const fotoProfilePath = await handleFileUpload(foto_profile, existingFotoProfile);
 
-    // Perbarui tabel users
     if (email || username) {
-      const [userResult] = await connection.execute<ResultSetHeader>(
-        'UPDATE users SET email = ?, username = ? WHERE id = ?',
-        [email || null, username || null, user_id]
-      );
-      if (userResult.affectedRows === 0) {
-        throw new Error('Pengguna tidak ditemukan');
-      }
+      await prisma.users.update({
+        where: { id: user_id },
+        data: {
+          email: email || undefined,
+          username: username || undefined
+        }
+      });
     }
 
-    // Perbarui tabel karyawan untuk role karyawan
     if (role === 'karyawan' && karyawan_id && (nama || fotoProfilePath || no_telepon || alamat)) {
-      const [karyawanResult] = await connection.execute<ResultSetHeader>(
-        'UPDATE karyawan SET nama = ?, foto_profile = ?, no_telepon = ?, alamat = ? WHERE id = ?',
-        [nama || null, fotoProfilePath || null, no_telepon || null, alamat || null, karyawan_id]
-      );
-      if (karyawanResult.affectedRows === 0) {
-        throw new Error('Karyawan tidak ditemukan');
-      }
+      await prisma.karyawan.update({
+        where: { id: karyawan_id },
+        data: {
+          nama: nama || undefined,
+          foto_profile: fotoProfilePath || undefined,
+          no_telepon: no_telepon || undefined,
+          alamat: alamat || undefined
+        }
+      });
     }
-
-    await connection.commit();
-    connection.release();
 
     return new NextResponse(
       JSON.stringify({
@@ -297,8 +224,6 @@ export async function PUT(req: NextRequest) {
       { status: 200, headers }
     );
   } catch (error) {
-    await connection.rollback();
-    connection.release();
     console.error('Error updating profile:', error);
     return new NextResponse(
       JSON.stringify({ message: 'Gagal memperbarui profil', error: (error as Error).message }),

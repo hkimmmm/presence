@@ -80,22 +80,22 @@ export default function Sidebar() {
     md:translate-x-0`}
 >
   {/* Header Sidebar */}
- <div className="flex justify-between items-center text-black p-4 border-b mt-[22px]">
-       <div className="flex items-center gap-3">
-         <Image
-           src={CV}
-           alt="Logo Citra Buana"
-           width={40}
-           height={40}
-           className="object-contain"
-         />
-         <h2 className="text-xl text-black font-bold">Citra Buana Cemerlang</h2>
-       </div>
-       <XMarkIcon
-         className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"
-         onClick={closeSidebar}
-       />
-     </div>
+  <div className="bg-blue-500 flex justify-between items-center text-black p-4 border-b">
+    <div className="flex items-center gap-3">
+      <Image
+        src={CV}
+        alt="Logo Citra Buana"
+        width={40}
+        height={40}
+        className="object-contain"
+      />
+      <h2 className="text-xl text-black font-bold">Citra Buana Cemerlang</h2>
+    </div>
+    <XMarkIcon
+      className="h-6 w-6 text-gray-600 cursor-pointer md:hidden"
+      onClick={closeSidebar}
+    />
+  </div>
 
   {/* Isi Sidebar */}
   <nav className="p-4 flex-1 overflow-y-auto">
