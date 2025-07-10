@@ -11,7 +11,7 @@ const BASE_URL = '/uploads/profiles';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
     'Access-Control-Allow-Methods': 'GET, PUT, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Content-Type': 'application/json',

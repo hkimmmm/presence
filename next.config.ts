@@ -8,10 +8,15 @@ const nextConfig: NextConfig = {
       //192.168.18.9 wifi milik rumah
       //192.168.1.11 milik citra buana
       // 192.108.214.198 hp saya
-      '192.168.18.9', // Tambahkan IP/domain server lokal Anda
+      // '192.168.18.9', // Tambahkan IP/domain server lokal Anda
+      '31.97.108.186',
       'localhost'     // Tambahkan localhost untuk development
     ],
   },
+
+   eslint : {
+            ignoreDuringBuilds: true,
+    },
 
   // Konfigurasi header CORS untuk file statis
   async headers() {

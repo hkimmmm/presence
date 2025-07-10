@@ -52,6 +52,7 @@ export default function LoginForm() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(form),
+        credentials: "include", // Pastikan cookie httpOnly dikirim
       });
 
       const result = await response.json();

@@ -173,7 +173,7 @@ export async function GET(req: NextRequest) {
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
     'Access-Control-Allow-Methods': 'GET, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Content-Type': 'application/json',

@@ -38,7 +38,7 @@ const BASE_URL = '/uploads/proof';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
     'Access-Control-Allow-Credentials': 'true',

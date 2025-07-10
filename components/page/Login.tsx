@@ -1,3 +1,5 @@
+"use client";
+
 import LoginForm from "../forms/FormLogin";
 import Link from "next/link";
 

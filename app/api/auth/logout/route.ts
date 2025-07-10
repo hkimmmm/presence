@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': process.env.NODE_ENV === 'production' ? 'https://yourdomain.com' : 'http://localhost:3000',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Content-Type': 'application/json',
