@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 const monthNames = [
   'Januari',
@@ -38,6 +39,7 @@ type Karyawan = {
 };
 
 export default function LaporanAbsensi() {
+  const router = useRouter();
   const [karyawanList, setKaryawanList] = useState<Karyawan[]>([]);
   const [selectedKaryawan, setSelectedKaryawan] = useState<number | null>(null);
   const [data, setData] = useState<LaporanAbsensi | LaporanAbsensi[] | null>(null);
@@ -50,17 +52,32 @@ export default function LaporanAbsensi() {
   useEffect(() => {
     async function fetchKaryawan() {
       try {
-        const res = await fetch('/api/employees');
+        const token = localStorage.getItem('token');
+        const res = await fetch('/api/employees', {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          credentials: 'include',
+        });
+
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Gagal memuat daftar karyawan');
+        }
+
         const json = await res.json();
         setKaryawanList(json);
       } catch (err) {
         console.error('Gagal memuat karyawan:', err);
-        setError('Gagal memuat daftar karyawan.');
+        setError(err instanceof Error ? err.message : 'Gagal memuat daftar karyawan.');
+        router.push('/auth/login?error=invalid_token');
       }
     }
 
     fetchKaryawan();
-  }, []);
+  }, [router]);
 
   useEffect(() => {
     if (scope === 'single' && !selectedKaryawan) return;
@@ -69,37 +86,64 @@ export default function LaporanAbsensi() {
       setLoading(true);
       setError(null);
       try {
+        const token = localStorage.getItem('token');
         const url =
           scope === 'single'
             ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}`
             : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}`;
-        const res = await fetch(url);
+        const res = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token && { Authorization: `Bearer ${token}` }),
+          },
+          credentials: 'include',
+        });
 
-        if (!res.ok) throw new Error('Gagal fetch');
+        if (!res.ok) {
+          const errorText = await res.text();
+          console.error('Fetch error:', res.status, errorText);
+          throw new Error(`Gagal fetch: ${res.status} ${errorText}`);
+        }
 
         const json = await res.json();
         setData(json);
       } catch (err) {
         console.error('Gagal mengambil data laporan:', err);
         setData(null);
-        setError('Tidak dapat memuat data laporan.');
+        setError(err instanceof Error ? err.message : 'Tidak dapat memuat data laporan.');
+        if (err instanceof Error && err.message.includes('401')) {
+          router.push('/auth/login?error=invalid_token');
+        }
       } finally {
         setLoading(false);
       }
     }
 
     fetchLaporan();
-  }, [selectedKaryawan, bulan, tahun, scope]);
+  }, [selectedKaryawan, bulan, tahun, scope, router]);
 
   const downloadReport = async (format: 'pdf' | 'excel') => {
     try {
+      const token = localStorage.getItem('token');
       const url =
         scope === 'single'
           ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=${format}`
           : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=${format}`;
-      const res = await fetch(url);
+      const res = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token && { Authorization: `Bearer ${token}` }),
+        },
+        credentials: 'include',
+      });
 
-      if (!res.ok) throw new Error('Gagal mengunduh laporan');
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Download error:', res.status, errorText);
+        throw new Error(`Gagal mengunduh laporan: ${res.status} ${errorText}`);
+      }
 
       const blob = await res.blob();
       const downloadUrl = window.URL.createObjectURL(blob);
@@ -112,7 +156,10 @@ export default function LaporanAbsensi() {
       window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
       console.error('Gagal mengunduh:', err);
-      setError('Gagal mengunduh laporan.');
+      setError(err instanceof Error ? err.message : 'Gagal mengunduh laporan.');
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/auth/login?error=invalid_token');
+      }
     }
   };
 
@@ -123,37 +170,32 @@ export default function LaporanAbsensi() {
           ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`
           : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`;
 
-      // Buat iframe sementara untuk merender PDF
       const iframe = document.createElement('iframe');
-      iframe.style.display = 'none'; // Sembunyikan iframe
+      iframe.style.display = 'none';
       iframe.src = url;
       document.body.appendChild(iframe);
 
-      // Fungsi untuk membersihkan iframe
       const cleanupIframe = () => {
         if (document.body.contains(iframe)) {
           document.body.removeChild(iframe);
         }
       };
 
-      // Tambahkan event afterprint untuk menghapus iframe setelah pencetakan selesai
       const onAfterPrint = () => {
         cleanupIframe();
         window.removeEventListener('afterprint', onAfterPrint);
       };
       window.addEventListener('afterprint', onAfterPrint);
 
-      // Tunggu PDF dimuat, lalu panggil print
       iframe.onload = () => {
         try {
-          // Tambahkan penundaan untuk memastikan PDF dirender sepenuhnya
           setTimeout(() => {
             if (iframe.contentWindow) {
               iframe.contentWindow.print();
             } else {
               throw new Error('Jendela iframe tidak tersedia.');
             }
-          }, 1500); // Penundaan 1.5 detik untuk rendering
+          }, 1500);
         } catch (err) {
           console.error('Gagal mencetak:', err);
           setError('Gagal mencetak laporan.');
@@ -162,7 +204,6 @@ export default function LaporanAbsensi() {
         }
       };
 
-      // Tangani error jika iframe gagal dimuat
       iframe.onerror = () => {
         setError('Gagal memuat PDF untuk pencetakan.');
         cleanupIframe();
