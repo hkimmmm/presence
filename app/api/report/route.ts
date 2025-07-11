@@ -14,6 +14,21 @@ const monthNames = [
   'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
 ];
 
+function corsHeaders() {
+  return {
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'https://31.97.108.186',
+    'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
+    'Content-Type': 'application/json',
+    'Access-Control-Max-Age': '86400',
+  };
+}
+
+export async function OPTIONS() {
+  return new NextResponse(null, { status: 204, headers: corsHeaders() });
+}
+
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const karyawan_id = parseInt(searchParams.get('karyawan_id') || '0');
@@ -25,12 +40,18 @@ export async function GET(req: NextRequest) {
 
   // Validasi parameter
   if (scope === 'single' && (!karyawan_id || !bulan || !tahun)) {
-    return NextResponse.json({ error: 'Parameter tidak lengkap' }, { status: 400 });
+    return NextResponse.json({ error: 'Parameter wajib tidak lengkap' }, { status: 400, headers: corsHeaders() });
   } else if (scope === 'all' && (!bulan || !tahun)) {
-    return NextResponse.json({ error: 'Bulan dan tahun diperlukan' }, { status: 400 });
+    return NextResponse.json({ error: 'Bulan dan tahun wajib diisi' }, { status: 400, headers: corsHeaders() });
   }
 
   try {
+    // Uji koneksi database
+    await prisma.$connect().catch((err) => {
+      console.error('Gagal terhubung ke database:', err);
+      throw new Error('Gagal terhubung ke database');
+    });
+
     const reportData: any[] = [];
     let karyawanList: { id: number; nama: string }[] = [];
 
@@ -38,14 +59,16 @@ export async function GET(req: NextRequest) {
     if (scope === 'all') {
       karyawanList = await prisma.karyawan.findMany({
         select: { id: true, nama: true },
+        take: 100, // Batasi untuk mencegah kelebihan beban
       });
+      console.log('Daftar karyawan:', karyawanList.length);
     } else {
       const karyawan = await prisma.karyawan.findFirst({
         where: { id: karyawan_id },
         select: { id: true, nama: true },
       });
       if (!karyawan) {
-        return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 404 });
+        return NextResponse.json({ error: 'Karyawan tidak ditemukan' }, { status: 404, headers: corsHeaders() });
       }
       karyawanList = [{ id: karyawan.id, nama: karyawan.nama }];
     }
@@ -67,7 +90,7 @@ export async function GET(req: NextRequest) {
           keterangan: true,
         },
       });
-      console.log(`Presensi rows for karyawan_id ${karyawan.id}:`, JSON.stringify(presensiRows, null, 2));
+      console.log(`Presensi untuk karyawan_id ${karyawan.id}:`, JSON.stringify(presensiRows, null, 2));
 
       // 2. Ambil leave_requests yang disetujui
       const izinRows = await prisma.leave_requests.findMany({
@@ -96,7 +119,7 @@ export async function GET(req: NextRequest) {
           keterangan: true,
         },
       });
-      console.log(`Izin rows for karyawan_id ${karyawan.id}:`, JSON.stringify(izinRows, null, 2));
+      console.log(`Izin untuk karyawan_id ${karyawan.id}:`, JSON.stringify(izinRows, null, 2));
 
       // 3. Expand range tanggal dari izin
       const izinExpanded: { tanggal: string; status: string; keterangan: string }[] = [];
@@ -131,7 +154,7 @@ export async function GET(req: NextRequest) {
       const detail = Object.values(byTanggal)
         .filter((row: any) => typeof row.tanggal === 'string')
         .sort((a: any, b: any) => a.tanggal.localeCompare(b.tanggal));
-      console.log(`Detail for karyawan_id ${karyawan.id}:`, JSON.stringify(detail, null, 2));
+      console.log(`Detail untuk karyawan_id ${karyawan.id}:`, JSON.stringify(detail, null, 2));
 
       // 6. Hitung total
       const total_hadir = detail.filter((d: any) => d.status === 'hadir').length;
@@ -164,7 +187,7 @@ export async function GET(req: NextRequest) {
       worksheet.getCell('A1').fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FF002060' } // Biru navy
+        fgColor: { argb: 'FF002060' }
       };
       worksheet.getCell('A1').alignment = { 
         vertical: 'middle', 
@@ -207,7 +230,7 @@ export async function GET(req: NextRequest) {
       headerRow.fill = {
         type: 'pattern',
         pattern: 'solid',
-        fgColor: { argb: 'FFD3D3D3' } // Abu-abu muda
+        fgColor: { argb: 'FFD3D3D3' }
       };
       headerRow.alignment = { 
         vertical: 'middle', 
@@ -224,7 +247,6 @@ export async function GET(req: NextRequest) {
 
       // Tambahkan data
       reportData.forEach((report, index) => {
-        // Baris Total per Karyawan
         const totalRow = worksheet.addRow({
           karyawan_id: report.karyawan_id,
           karyawan_nama: report.karyawan_nama,
@@ -241,11 +263,10 @@ export async function GET(req: NextRequest) {
         totalRow.fill = {
           type: 'pattern',
           pattern: 'solid',
-          fgColor: { argb: 'FFF2F2F2' } // Abu-abu sangat muda
+          fgColor: { argb: 'FFF2F2F2' }
         };
         worksheet.mergeCells(`D${totalRow.number}:E${totalRow.number}`);
 
-        // Detail Absensi
         report.detail.forEach((item: any) => {
           const row = worksheet.addRow({
             karyawan_id: '',
@@ -260,28 +281,27 @@ export async function GET(req: NextRequest) {
             size: 10 
           };
           
-          // Warna berbeda untuk setiap status
           const statusCell = row.getCell(4);
           switch(item.status.toLowerCase()) {
             case 'hadir':
               statusCell.fill = { 
                 type: 'pattern', 
                 pattern: 'solid', 
-                fgColor: { argb: 'FFC6EFCE' } // Hijau muda
+                fgColor: { argb: 'FFC6EFCE' }
               };
               break;
             case 'izin':
               statusCell.fill = { 
                 type: 'pattern', 
                 pattern: 'solid', 
-                fgColor: { argb: 'FFFFEB9C' } // Kuning
+                fgColor: { argb: 'FFFFEB9C' }
               };
               break;
             case 'sakit':
               statusCell.fill = { 
                 type: 'pattern', 
                 pattern: 'solid', 
-                fgColor: { argb: 'FFFFC7CE' } // Merah muda
+                fgColor: { argb: 'FFFFC7CE' }
               };
               break;
           }
@@ -296,16 +316,14 @@ export async function GET(req: NextRequest) {
           });
         });
 
-        // Baris kosong antar karyawan (khusus laporan semua karyawan)
         if (scope === 'all' && index < reportData.length - 1) {
           worksheet.addRow([]);
         }
       });
 
-      // Format semua cell tanggal
       worksheet.getColumn(3).eachCell((cell) => {
         if (cell.value && cell.value.toString().match(/^\d{4}-\d{2}-\d{2}$/)) {
-          cell.numFmt = 'dd-mmm-yyyy'; // Format: 01-Jan-2023
+          cell.numFmt = 'dd-mmm-yyyy';
         }
       });
 
@@ -314,6 +332,7 @@ export async function GET(req: NextRequest) {
       return new NextResponse(buffer, {
         status: 200,
         headers: {
+          ...corsHeaders(),
           'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
           'Content-Disposition': `attachment; filename=Laporan_Absensi_${monthNames[bulan-1]}_${tahun}.xlsx`
         },
@@ -322,11 +341,11 @@ export async function GET(req: NextRequest) {
       const fontPath = path.resolve('public/fonts/Merriweather-Regular.ttf');
       const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
 
+      console.log('Font ada:', fs.existsSync(fontPath));
+      console.log('Logo ada:', fs.existsSync(logoPath));
+
       if (!fs.existsSync(fontPath)) {
-        return NextResponse.json({ error: 'Font file tidak ditemukan' }, { status: 500 });
-      }
-      if (!fs.existsSync(logoPath)) {
-        console.warn('Logo file tidak ditemukan, akan dilanjutkan tanpa logo');
+        throw new Error('File font tidak ditemukan di ' + fontPath);
       }
 
       const doc = new PDFDocument({
@@ -346,37 +365,29 @@ export async function GET(req: NextRequest) {
         doc.font('Helvetica');
       }
 
-      // Header dengan logo dan judul
       if (fs.existsSync(logoPath)) {
-        // Tambahkan logo di pojok kiri
         doc.image(logoPath, 50, 30, { 
           width: 60, 
           height: 60,
           align: 'center',
           valign: 'center'
         });
-        
-        // Judul perusahaan di sebelah kanan logo
         doc.fontSize(18)
           .fillColor('#2F5496')
           .text('CV Citra Buana Cemerlang', 120, 40, { align: 'center' });
-          
-        // Subjudul di bawah judul perusahaan
         doc.fontSize(14)
           .fillColor('#333333')
           .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 120, 65, { align: 'center' });
       } else {
-        // Jika logo tidak ada, gunakan layout lama
+        console.warn('Logo tidak ditemukan di ' + logoPath);
         doc.fontSize(18)
           .fillColor('#2F5496')
           .text('CV Citra Buana Cemerlang', 50, 30, { align: 'center' });
-          
         doc.fontSize(14)
           .fillColor('#333333')
           .text(`Laporan Absensi Bulan ${monthNames[bulan - 1]} ${tahun}`, 50, 50, { align: 'center' });
       }
 
-      // Garis pemisah
       doc.lineWidth(1)
         .moveTo(50, 90)
         .lineTo(550, 90)
@@ -387,7 +398,6 @@ export async function GET(req: NextRequest) {
       reportData.forEach((report, index) => {
         if (index > 0) {
           doc.addPage();
-          // Repeat header on new page
           if (fs.existsSync(logoPath)) {
             doc.image(logoPath, 50, 30, { 
               width: 60, 
@@ -413,22 +423,17 @@ export async function GET(req: NextRequest) {
           doc.moveDown(2);
         }
 
-        // Informasi karyawan
         doc.fontSize(12).fillColor('#333333').text(`Karyawan: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 50, doc.y);
         doc.fontSize(10).text(`Total Hadir: ${report.total_hadir}`, 50, doc.y + 15);
         doc.text(`Total Sakit: ${report.total_sakit}`, 50, doc.y + 10);
         doc.text(`Total Izin: ${report.total_izin}`, 50, doc.y + 10);
         doc.moveDown(2);
 
-        // Header tabel
         const tableTop = doc.y;
         const col1 = 50, col2 = 150, col3 = 250;
         const rowHeight = 20;
 
-        // 1. Gambar background header terlebih dahulu
         doc.rect(col1 - 5, tableTop - 5, 500, rowHeight).fill('#2F5496');
-        
-        // 2. Kemudian tambahkan teks di atasnya
         doc.fontSize(10)
           .fillColor('#FFFFFF')
           .text('Tanggal', col1, tableTop, { align: 'left', width: 100 })
@@ -437,29 +442,24 @@ export async function GET(req: NextRequest) {
 
         doc.moveDown(1);
 
-        // Tabel isi
         if (report.detail.length === 0) {
-          console.log(`No data found for karyawan_id ${report.karyawan_id} in month ${bulan} ${tahun}`);
+          console.log(`Tidak ada data untuk karyawan_id ${report.karyawan_id} pada bulan ${bulan} ${tahun}`);
           doc.text('Tidak ada data absensi untuk periode ini.', col1, doc.y, { width: 500 });
           doc.moveDown(1);
         } else {
           report.detail.forEach((item: any, i: number) => {
             const rowTop = doc.y;
-            
             if (i % 2 === 0) {
               doc.rect(col1 - 5, rowTop - 5, 500, rowHeight).fill('#F5F6F5');
             }
-            
             doc.fillColor('#333333')
               .text(item.tanggal || 'Tidak ada', col1, rowTop, { align: 'left', width: 100 })
               .text(item.status || 'Tidak ada', col2, rowTop, { align: 'center', width: 100 })
               .text(item.keterangan || 'Tidak ada', col3, rowTop, { align: 'left', width: 300 });
-            
             doc.moveDown(1);
           });
         }
 
-        // Garis penutup tabel
         doc.lineWidth(0.5).moveTo(col1 - 5, doc.y).lineTo(col1 + col3 + 245, doc.y).stroke();
       });
 
@@ -468,38 +468,40 @@ export async function GET(req: NextRequest) {
       return new Promise<NextResponse>((resolve) => {
         doc.on('end', () => {
           const pdfBuffer = Buffer.concat(buffers);
-          if (print) {
-            resolve(
-              new NextResponse(pdfBuffer, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-                },
-              })
-            );
-          } else {
-            resolve(
-              new NextResponse(pdfBuffer, {
-                status: 200,
-                headers: {
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-                },
-              })
-            );
-          }
+          resolve(
+            new NextResponse(pdfBuffer, {
+              status: 200,
+              headers: {
+                ...corsHeaders(),
+                'Content-Type': 'application/pdf',
+                'Content-Disposition': print
+                  ? `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`
+                  : `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+              },
+            })
+          );
         });
       });
     }
 
     // Default: JSON
-    return NextResponse.json(scope === 'single' ? reportData[0] : reportData);
+    return NextResponse.json(scope === 'single' ? reportData[0] : reportData, { status: 200, headers: corsHeaders() });
   } catch (error) {
-    console.error('❌ Gagal mengambil laporan:', {
-      message: error instanceof Error ? error.message : 'Unknown error',
+    console.error('❌ Gagal menghasilkan laporan:', {
+      message: error instanceof Error ? error.message : 'Kesalahan tidak diketahui',
       stack: error instanceof Error ? error.stack : undefined,
+      karyawan_id,
+      bulan,
+      tahun,
+      format,
+      scope,
     });
-    return NextResponse.json({ error: 'Gagal mengambil data', details: error instanceof Error ? error.message : 'Unknown error' }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: 'Gagal menghasilkan laporan',
+        details: error instanceof Error ? error.message : 'Kesalahan tidak diketahui',
+      },
+      { status: 500, headers: corsHeaders() }
+    );
   }
 }
