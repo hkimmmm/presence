@@ -8,10 +8,12 @@ const JWT_SECRET = process.env.JWT_SECRET || 'secret';
 
 function corsHeaders() {
   return {
-    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
-    'Access-Control-Allow-Methods': 'GET, POST, PATCH, OPTIONS',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'https://31.97.108.186',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
     'Content-Type': 'application/json',
+    'Access-Control-Max-Age': '86400',
   };
 }
 

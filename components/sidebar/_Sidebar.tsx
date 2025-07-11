@@ -80,7 +80,7 @@ export default function Sidebar() {
     md:translate-x-0`}
 >
   {/* Header Sidebar */}
-  <div className="bg-blue-500 flex justify-between items-center text-black p-4 border-b">
+  <div className="bg-blue-300 flex justify-between items-center text-black p-4 border-b">
     <div className="flex items-center gap-3">
       <Image
         src={CV}

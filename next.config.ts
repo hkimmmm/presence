@@ -1,46 +1,66 @@
-import type { NextConfig } from "next";
+import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
-  // Konfigurasi untuk Next.js Image Optimization
+  // Optimasi gambar menggunakan remotePatterns
   images: {
-    domains: [
-      'flowbite.com', // Domain eksternal yang sudah ada
-      //192.168.18.9 wifi milik rumah
-      //192.168.1.11 milik citra buana
-      // 192.108.214.198 hp saya
-      // '192.168.18.9', // Tambahkan IP/domain server lokal Anda
-      '31.97.108.186',
-      'localhost'     // Tambahkan localhost untuk development
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'flowbite.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '31.97.108.186',
+        port: '3000',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/**',
+      },
+      {
+        protocol: 'http',
+        hostname: '192.168.18.9',
+        port: '3000',
+        pathname: '/**',
+      },
     ],
   },
 
-   eslint : {
-            ignoreDuringBuilds: true,
-    },
+  // Nonaktifkan ESLint selama build (opsional)
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
 
-  // Konfigurasi header CORS untuk file statis
+  // Header CORS untuk file statis
   async headers() {
     return [
       {
-        // Apply CORS to all static files
-        source: "/:path*",
+        source: '/:path*',
         headers: [
           {
-            key: "Access-Control-Allow-Origin",
-            value: "*",
+            key: 'Access-Control-Allow-Origin',
+            value: process.env.CLIENT_URL || 'https://31.97.108.186:3000',
           },
           {
-            key: "Access-Control-Allow-Methods",
-            value: "GET, OPTIONS",
+            key: 'Access-Control-Allow-Methods',
+            value: 'GET, OPTIONS',
           },
           {
-            key: "Access-Control-Allow-Headers",
-            value: "Content-Type, Authorization",
+            key: 'Access-Control-Allow-Headers',
+            value: 'Content-Type, Authorization',
           },
         ],
       },
     ];
   },
+
+  // Build standalone untuk VPS
+  output: 'standalone',
 };
 
 export default nextConfig;

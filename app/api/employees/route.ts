@@ -5,9 +5,12 @@ import fs from 'fs/promises';
 import path from 'path';
 
 const CORS_HEADERS = {
-  'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
-  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'https://31.97.108.186',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
+    'Access-Control-Allow-Headers': 'Authorization, Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
+    'Content-Type': 'application/json',
+    'Access-Control-Max-Age': '86400',
 };
 
 interface User {

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import { prisma } from '@/app/utils/prisma';
@@ -27,13 +28,12 @@ interface LeaveRequestResponse {
   foto_bukti?: string | null;
 }
 
-// Interface untuk tipe data dari Prisma query
 interface PrismaLeaveRequest {
   id: number;
-  jenis: string; 
+  jenis: string;
   tanggal_mulai: Date;
   tanggal_selesai: Date;
-  status: string | null; 
+  status: string | null;
   keterangan: string | null;
   foto_bukti: string | null;
 }
@@ -46,18 +46,18 @@ if (!JWT_SECRET) {
 export async function POST(request: Request) {
   try {
     const { email, password: inputPassword } = await request.json();
+    console.log('Request Body:', { email, password: '****' });
+    console.log('CLIENT_URL:', process.env.CLIENT_URL);
+    console.log('NODE_ENV:', process.env.NODE_ENV);
+    console.log('DATABASE_URL:', process.env.DATABASE_URL ? 'Set' : 'Not set');
 
     if (!email || !inputPassword) {
       return new NextResponse(
         JSON.stringify({ message: 'Email dan password wajib diisi' }),
-        {
-          status: 400,
-          headers: corsHeaders(),
-        }
+        { status: 400, headers: corsHeaders() }
       );
     }
 
-    // Query untuk mencari user berdasarkan email dengan relasi karyawan
     const user = await prisma.users.findUnique({
       where: { email },
       select: {
@@ -79,30 +79,23 @@ export async function POST(request: Request) {
         },
       },
     });
+    console.log('User Query Result:', user ? 'User found' : 'User not found');
 
     if (!user) {
       return new NextResponse(
         JSON.stringify({ message: 'Email tidak terdaftar' }),
-        {
-          status: 404,
-          headers: corsHeaders(),
-        }
+        { status: 404, headers: corsHeaders() }
       );
     }
 
     const isMatch = await bcrypt.compare(inputPassword, user.password);
-
     if (!isMatch) {
       return new NextResponse(
         JSON.stringify({ message: 'Password salah' }),
-        {
-          status: 401,
-          headers: corsHeaders(),
-        }
+        { status: 401, headers: corsHeaders() }
       );
     }
 
-    // Ambil leave_requests jika role adalah karyawan
     let leaveRequests: PrismaLeaveRequest[] = [];
     if (user.role === 'karyawan' && user.karyawan?.id) {
       leaveRequests = await prisma.leave_requests.findMany({
@@ -117,9 +110,9 @@ export async function POST(request: Request) {
           foto_bukti: true,
         },
       });
+      console.log('Leave Requests:', leaveRequests);
     }
 
-    // Format respons user tanpa password
     const userWithoutPassword: UserResponse = {
       user_id: user.id,
       username: user.username,
@@ -134,7 +127,6 @@ export async function POST(request: Request) {
       tanggal_bergabung: user.karyawan?.tanggal_bergabung,
     };
 
-    // Generate JWT token
     const token = jwt.sign(
       {
         user_id: user.id,
@@ -147,6 +139,7 @@ export async function POST(request: Request) {
       JWT_SECRET,
       { expiresIn: '1d' }
     );
+    console.log('Generated Token:', token);
 
     const response = new NextResponse(
       JSON.stringify({
@@ -163,40 +156,37 @@ export async function POST(request: Request) {
         }) as LeaveRequestResponse),
         token,
       }),
-      {
-        status: 200,
-        headers: corsHeaders(),
-      }
+      { status: 200, headers: corsHeaders() }
     );
 
-    // Simpan token di cookie httpOnly
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV === 'production' ? true : false,
+      domain: process.env.NODE_ENV === 'production' ? '31.97.108.186' : undefined,
       sameSite: 'lax',
       path: '/',
       maxAge: 24 * 60 * 60, // 1 hari
     });
 
     return response;
-  } catch (error) {
-    console.error('Error saat login:', error);
+  } catch (error: any) {
+    console.error('Error saat login:', error.message);
     return new NextResponse(
-      JSON.stringify({ message: 'Terjadi kesalahan pada server' }),
-      {
-        status: 500,
-        headers: corsHeaders(),
-      }
+      JSON.stringify({ message: 'Terjadi kesalahan pada server', error: error.message }),
+      { status: 500, headers: corsHeaders() }
     );
   }
 }
 
 function corsHeaders() {
+  console.log('CORS CLIENT_URL:', process.env.CLIENT_URL);
   return {
-    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'http://localhost:3000',
+    'Access-Control-Allow-Origin': process.env.CLIENT_URL || 'https://31.97.108.186:3000',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Credentials': 'true',
     'Content-Type': 'application/json',
+    'Access-Control-Max-Age': '86400', // Cache CORS headers selama 1 hari
   };
 }
 
