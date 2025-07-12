@@ -162,7 +162,7 @@ export async function POST(request: Request) {
     response.cookies.set('token', token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production' ? true : false,
-      domain: process.env.NODE_ENV === 'production' ? '31.97.108.186' : undefined,
+      domain: process.env.NODE_ENV === 'production' ? 'app.citrabuana.online' : undefined,
       sameSite: 'lax',
       path: '/',
       maxAge: 24 * 60 * 60, // 1 hari
