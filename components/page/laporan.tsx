@@ -297,11 +297,10 @@ export default function LaporanAbsensi() {
         {/* Download and Print Buttons */}
         <div className="flex flex-wrap gap-3 mt-4">
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-              scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
-            }`}
+              }`}
             onClick={() => downloadReport('pdf')}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -315,11 +314,10 @@ export default function LaporanAbsensi() {
             Unduh PDF
           </button>
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-              scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700'
-            }`}
+              }`}
             onClick={() => downloadReport('excel')}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -333,11 +331,10 @@ export default function LaporanAbsensi() {
             Unduh Excel
           </button>
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
-              scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-purple-600 text-white hover:bg-purple-700'
-            }`}
+              }`}
             onClick={printReport}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -417,13 +414,12 @@ export default function LaporanAbsensi() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <span
-                              className={`px-2 py-1 rounded-full text-xs ${
-                                item.status === 'hadir'
+                              className={`px-2 py-1 rounded-full text-xs ${item.status === 'hadir'
                                   ? 'bg-green-100 text-green-800'
                                   : item.status === 'sakit'
-                                  ? 'bg-red-100 text-red-800'
-                                  : 'bg-yellow-100 text-yellow-800'
-                              }`}
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}
                             >
                               {item.status}
                             </span>
@@ -489,13 +485,12 @@ export default function LaporanAbsensi() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <span
-                                className={`px-2 py-1 rounded-full text-xs ${
-                                  item.status === 'hadir'
+                                className={`px-2 py-1 rounded-full text-xs ${item.status === 'hadir'
                                     ? 'bg-green-100 text-green-800'
                                     : item.status === 'sakit'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-yellow-100 text-yellow-800'
-                                }`}
+                                      ? 'bg-red-100 text-red-800'
+                                      : 'bg-yellow-100 text-yellow-800'
+                                  }`}
                               >
                                 {item.status}
                               </span>

@@ -1,7 +1,7 @@
 import Laporan from "@/components/page/laporan";
 export const metadata = {
     title: 'Laporan',
-    description: 'Daftar izin',
+    description: 'Daftar Laporan',
   };
 
 const LaporanPage = () => {

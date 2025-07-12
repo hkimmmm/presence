@@ -12,20 +12,8 @@ const nextConfig: NextConfig = {
       },
       {
         protocol: 'https',
-        hostname: '31.97.108.186',
-        port: '3000',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http',
-        hostname: 'localhost',
-        port: '3000',
-        pathname: '/**',
-      },
-      {
-        protocol: 'http',
-        hostname: '192.168.18.9',
-        port: '3000',
+        hostname: 'app.citrabuana.online',
+        port: '',
         pathname: '/**',
       },
     ],
@@ -44,7 +32,7 @@ const nextConfig: NextConfig = {
         headers: [
           {
             key: 'Access-Control-Allow-Origin',
-            value: process.env.CLIENT_URL || 'https://31.97.108.186:3000',
+            value: 'https://app.citrabuana.online',
           },
           {
             key: 'Access-Control-Allow-Methods',
@@ -58,6 +46,11 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+
+  // Untuk menghindari warning CORS di _next/* resource
+  allowedDevOrigins: [
+    'https://app.citrabuana.online',
+  ],
 
   // Build standalone untuk VPS
   output: 'standalone',
