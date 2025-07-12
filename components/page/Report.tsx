@@ -1,211 +1,586 @@
-"use client";
+'use client';
 
-import React, { useState } from 'react';
-import Table from '../ui/Table';
-import jsPDF from 'jspdf';
-import * as XLSX from 'xlsx';
-import autoTable from 'jspdf-autotable';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
-// Definisikan tipe untuk data presensi
-interface PresensiData {
-  id: number;
-  karyawan_nama: string;
+const monthNames = [
+  'Januari',
+  'Februari',
+  'Maret',
+  'April',
+  'Mei',
+  'Juni',
+  'Juli',
+  'Agustus',
+  'September',
+  'Oktober',
+  'November',
+  'Desember',
+];
+
+type AbsensiItem = {
   tanggal: string;
-  checkin_time: string;
-  checkout_time: string;
-  checkin_lokasi: string;
-  checkout_lokasi: string;
   status: string;
   keterangan: string;
+};
+
+type LaporanAbsensi = {
+  karyawan_id: number;
+  karyawan_nama?: string;
+  total_hadir: number;
+  total_sakit: number;
+  total_izin: number;
+  detail: AbsensiItem[];
+};
+
+type Karyawan = {
+  id: number;
+  nama: string;
+};
+
+interface TokenPayload {
+  user_id: number;
+  username: string;
+  role: string;
+  nama: string;
+  foto_profile: string | null;
 }
 
-const ReportPage = () => {
-  const [startDate, setStartDate] = useState('2025-06-01');
-  const [endDate, setEndDate] = useState('2025-06-20');
-  const [statusFilter, setStatusFilter] = useState('all');
-  const [selectedRows, setSelectedRows] = useState<number[]>([]); // State untuk melacak baris yang dipilih
-  const [exportFormat, setExportFormat] = useState<'pdf' | 'excel'>('pdf'); // State untuk memilih format ekspor
+export default function LaporanAbsensi() {
+  const router = useRouter();
+  const [karyawanList, setKaryawanList] = useState<Karyawan[]>([]);
+  const [selectedKaryawan, setSelectedKaryawan] = useState<number | null>(null);
+  const [data, setData] = useState<LaporanAbsensi | LaporanAbsensi[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bulan, setBulan] = useState<number>(new Date().getMonth() + 1);
+  const [tahun, setTahun] = useState<number>(new Date().getFullYear());
+  const [scope, setScope] = useState<'single' | 'all'>('single');
 
-  // Dummy data untuk presensi (ganti dengan data dari API)
-  const presensiData: PresensiData[] = [
-    { id: 1, karyawan_nama: 'John Doe', tanggal: '2025-06-20', checkin_time: '08:00:00', checkout_time: '17:00:00', checkin_lokasi: '-6.123456, 106.789012', checkout_lokasi: '-6.123457, 106.789013', status: 'Aktif', keterangan: '-' },
-    { id: 2, karyawan_nama: 'Jane Smith', tanggal: '2025-06-19', checkin_time: '08:15:00', checkout_time: '16:45:00', checkin_lokasi: '-6.123458, 106.789014', checkout_lokasi: '-6.123459, 106.789015', status: 'Aktif', keterangan: 'Telat masuk' },
-    { id: 3, karyawan_nama: 'John Doe', tanggal: '2025-06-19', checkin_time: '08:05:00', checkout_time: '17:10:00', checkin_lokasi: '-6.123457, 106.789013', checkout_lokasi: '-6.123458, 106.789014', status: 'Aktif', keterangan: '-' },
-    { id: 4, karyawan_nama: 'Jane Smith', tanggal: '2025-06-18', checkin_time: '08:20:00', checkout_time: '16:50:00', checkin_lokasi: '-6.123459, 106.789015', checkout_lokasi: '-6.123460, 106.789016', status: 'Nonaktif', keterangan: 'Izin' },
-  ];
+  useEffect(() => {
+    async function fetchUserAndKaryawan() {
+      try {
+        // Verifikasi pengguna dengan /api/me
+        const userResponse = await fetch('/api/me', {
+          method: 'GET',
+          credentials: 'include',
+        });
 
-  // Filter data berdasarkan tanggal dan status
-  const filteredData = presensiData.filter((item) => {
-    const itemDate = new Date(item.tanggal);
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const matchesDate = itemDate >= start && itemDate <= end;
-    const matchesStatus = statusFilter === 'all' || item.status === statusFilter;
-    return matchesDate && matchesStatus;
-  });
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json();
+          throw new Error(errorData.message || 'Gagal memuat data pengguna');
+        }
 
-  // Kelompokkan data per karyawan
-  const groupedData = filteredData.reduce((acc, item) => {
-    if (!acc[item.karyawan_nama]) {
-      acc[item.karyawan_nama] = [];
+        const userData: TokenPayload = await userResponse.json();
+        if (!['admin', 'supervisor'].includes(userData.role)) {
+          throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+        }
+
+        // Ambil daftar karyawan
+        const karyawanResponse = await fetch('/api/employees', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!karyawanResponse.ok) {
+          const errorData = await karyawanResponse.json();
+          throw new Error(errorData.message || 'Gagal memuat daftar karyawan');
+        }
+
+        const karyawanData = await karyawanResponse.json();
+        setKaryawanList(karyawanData);
+      } catch (err) {
+        console.error('Gagal memuat data:', err);
+        setError(err instanceof Error ? err.message : 'Gagal memuat data.');
+        router.push('/auth/login?error=invalid_token');
+      }
     }
-    acc[item.karyawan_nama].push(item);
-    return acc;
-  }, {} as Record<string, PresensiData[]>);
 
-  const columns = [
-    'ID',
-    'Nama Karyawan',
-    'Tanggal',
-    'Check-in',
-    'Check-out',
-    'Check-in Lokasi',
-    'Check-out Lokasi',
-    'Status',
-    'Keterangan',
-  ];
+    fetchUserAndKaryawan();
+  }, [router]);
 
-  // Callback untuk menangani perubahan pemilihan baris
-  // (dihapus karena tidak digunakan)
+  useEffect(() => {
+    if (scope === 'single' && !selectedKaryawan) return;
 
-  // Fungsi ekspor PDF
-  const exportToPDF = () => {
-    const doc = new jsPDF();
-    let y = 10;
-    Object.entries(groupedData).forEach(([karyawan, data]) => {
-      doc.text(`Laporan Presensi - ${karyawan}`, 10, y);
-      y += 10;
-      autoTable(doc, {
-        head: [columns],
-        body: data.map((item) => [
-          item.id.toString(),
-          item.karyawan_nama,
-          item.tanggal,
-          item.checkin_time,
-          item.checkout_time,
-          item.checkin_lokasi,
-          item.checkout_lokasi,
-          item.status,
-          item.keterangan,
-        ]),
-        startY: y,
+    async function fetchLaporan() {
+      setLoading(true);
+      setError(null);
+      try {
+        // Verifikasi pengguna sebelum mengambil laporan
+        const userResponse = await fetch('/api/me', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json();
+          throw new Error(errorData.message || 'Gagal memuat data pengguna');
+        }
+
+        const userData: TokenPayload = await userResponse.json();
+        if (!['admin', 'supervisor'].includes(userData.role)) {
+          throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+        }
+
+        // Ambil data laporan
+        const url =
+          scope === 'single'
+            ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}`
+            : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}`;
+        const reportResponse = await fetch(url, {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!reportResponse.ok) {
+          const errorText = await reportResponse.text();
+          console.error('Fetch error:', reportResponse.status, errorText);
+          throw new Error(`Gagal fetch: ${reportResponse.status} ${errorText}`);
+        }
+
+        const reportData = await reportResponse.json();
+        setData(reportData);
+      } catch (err) {
+        console.error('Gagal mengambil data laporan:', err);
+        setData(null);
+        setError(err instanceof Error ? err.message : 'Tidak dapat memuat data laporan.');
+        if (err instanceof Error && (err.message.includes('401') || err.message.includes('Token'))) {
+          router.push('/auth/login?error=invalid_token');
+        }
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchLaporan();
+  }, [selectedKaryawan, bulan, tahun, scope, router]);
+
+  const downloadReport = async (format: 'pdf' | 'excel') => {
+    try {
+      // Verifikasi pengguna sebelum mengunduh
+      const userResponse = await fetch('/api/me', {
+        method: 'GET',
+        credentials: 'include',
       });
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      y = (doc as any).lastAutoTable.finalY + 10; // Pindah ke posisi setelah tabel
-    });
-    doc.save('laporan-presensi.pdf');
+
+      if (!userResponse.ok) {
+        const errorData = await userResponse.json();
+        throw new Error(errorData.message || 'Gagal memuat data pengguna');
+      }
+
+      const userData: TokenPayload = await userResponse.json();
+      if (!['admin', 'supervisor'].includes(userData.role)) {
+        throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+      }
+
+      const url =
+        scope === 'single'
+          ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=${format}`
+          : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=${format}`;
+      const res = await fetch(url, {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!res.ok) {
+        const errorText = await res.text();
+        console.error('Download error:', res.status, errorText);
+        throw new Error(`Gagal mengunduh laporan: ${res.status} ${errorText}`);
+      }
+
+      const blob = await res.blob();
+      const downloadUrl = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = downloadUrl;
+      a.download = `report_${monthNames[bulan - 1]}_${tahun}.${format === 'excel' ? 'xlsx' : 'pdf'}`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(downloadUrl);
+    } catch (err) {
+      console.error('Gagal mengunduh:', err);
+      setError(err instanceof Error ? err.message : 'Gagal mengunduh laporan.');
+      if (err instanceof Error && (err.message.includes('401') || err.message.includes('Token'))) {
+        router.push('/auth/login?error=invalid_token');
+      }
+    }
   };
 
-  // Fungsi ekspor Excel
-  const exportToExcel = () => {
-    const wb = XLSX.utils.book_new();
-    Object.entries(groupedData).forEach(([karyawan, data]) => {
-      const ws = XLSX.utils.json_to_sheet(data);
-      XLSX.utils.book_append_sheet(wb, ws, karyawan);
-    });
-    XLSX.writeFile(wb, 'laporan-presensi.xlsx');
-  };
+  const printReport = async () => {
+    try {
+      // Verifikasi pengguna sebelum mencetak
+      const userResponse = await fetch('/api/me', {
+        method: 'GET',
+        credentials: 'include',
+      });
 
-  // Handler ekspor berdasarkan format
-  const handleExport = () => {
-    if (exportFormat === 'pdf') {
-      exportToPDF();
-    } else if (exportFormat === 'excel') {
-      exportToExcel();
+      if (!userResponse.ok) {
+        const errorData = await userResponse.json();
+        throw new Error(errorData.message || 'Gagal memuat data pengguna');
+      }
+
+      const userData: TokenPayload = await userResponse.json();
+      if (!['admin', 'supervisor'].includes(userData.role)) {
+        throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+      }
+
+      const url =
+        scope === 'single'
+          ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`
+          : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`;
+
+      const iframe = document.createElement('iframe');
+      iframe.style.display = 'none';
+      iframe.src = url;
+      document.body.appendChild(iframe);
+
+      const cleanupIframe = () => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      };
+
+      const onAfterPrint = () => {
+        cleanupIframe();
+        window.removeEventListener('afterprint', onAfterPrint);
+      };
+      window.addEventListener('afterprint', onAfterPrint);
+
+      iframe.onload = () => {
+        try {
+          setTimeout(() => {
+            if (iframe.contentWindow) {
+              iframe.contentWindow.print();
+            } else {
+              throw new Error('Jendela iframe tidak tersedia.');
+            }
+          }, 1500);
+        } catch (err) {
+          console.error('Gagal mencetak:', err);
+          setError('Gagal mencetak laporan.');
+          cleanupIframe();
+          window.removeEventListener('afterprint', onAfterPrint);
+        }
+      };
+
+      iframe.onerror = () => {
+        setError('Gagal memuat PDF untuk pencetakan.');
+        cleanupIframe();
+        window.removeEventListener('afterprint', onAfterPrint);
+      };
+    } catch (err) {
+      console.error('Gagal memulai pencetakan:', err);
+      setError('Gagal memulai pencetakan.');
+      if (err instanceof Error && (err.message.includes('401') || err.message.includes('Token'))) {
+        router.push('/auth/login?error=invalid_token');
+      }
     }
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto rounded-lg">
+    <div className="container mx-auto p-4 lg:p-6 overflow-x-hidden">
       {/* Header */}
-      <h1 className="text-2xl font-bold mb-4">Laporan Presensi Karyawan</h1>
-      <div className="mb-6 flex flex-col md:flex-row gap-4 items-end">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700">Tanggal Mulai</label>
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-          />
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Laporan Absensi</h1>
+        <p className="text-gray-600">Laporan kehadiran karyawan bulan {monthNames[bulan - 1]} {tahun}</p>
+      </div>
+
+      {/* Filter Section */}
+      <div className="bg-white rounded-lg shadow p-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {/* Scope Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Jenis Laporan</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={scope}
+              onChange={(e) => {
+                setScope(e.target.value as 'single' | 'all');
+                if (e.target.value === 'all') {
+                  setSelectedKaryawan(null); // Reset karyawan_id saat scope=all
+                }
+              }}
+            >
+              <option value="single">Per Karyawan</option>
+              <option value="all">Semua Karyawan</option>
+            </select>
+          </div>
+
+          {/* Employee Selector (only for single) */}
+          {scope === 'single' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Karyawan</label>
+              <select
+                className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                value={selectedKaryawan || ''}
+                onChange={(e) => {
+                  const val = parseInt(e.target.value);
+                  setSelectedKaryawan(isNaN(val) ? null : val);
+                }}
+              >
+                <option value="">-- Pilih Karyawan --</option>
+                {karyawanList.map((k) => (
+                  <option key={k.id} value={k.id}>
+                    {k.nama}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Month Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Bulan</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={bulan}
+              onChange={(e) => setBulan(parseInt(e.target.value))}
+            >
+              {monthNames.map((name, index) => (
+                <option key={index + 1} value={index + 1}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Year Selector */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tahun</label>
+            <select
+              className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              value={tahun}
+              onChange={(e) => setTahun(parseInt(e.target.value))}
+            >
+              {Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - 2 + i).map((thn) => (
+                <option key={thn} value={thn}>
+                  {thn}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700">Tanggal Selesai</label>
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-          />
-        </div>
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700">Status</label>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-          >
-            <option value="all">Semua</option>
-            <option value="Aktif">Aktif</option>
-            <option value="Nonaktif">Nonaktif</option>
-          </select>
-        </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={exportFormat}
-            onChange={(e) => setExportFormat(e.target.value as 'pdf' | 'excel')}
-            className="mt-1 block w-full border border-gray-300 rounded-md p-2"
-          >
-            <option value="pdf">PDF</option>
-            <option value="excel">Excel</option>
-          </select>
+
+        {/* Download and Print Buttons */}
+        <div className="flex flex-wrap gap-3 mt-4">
           <button
-            onClick={handleExport}
-            className="mt-6 md:mt-0 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
-            disabled={selectedRows.length === 0}
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-blue-600 text-white hover:bg-blue-700'
+            }`}
+            onClick={() => downloadReport('pdf')}
+            disabled={scope === 'single' && !selectedKaryawan}
           >
-            Ekspor
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Unduh PDF
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-green-600 text-white hover:bg-green-700'
+            }`}
+            onClick={() => downloadReport('excel')}
+            disabled={scope === 'single' && !selectedKaryawan}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Unduh Excel
+          </button>
+          <button
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                : 'bg-purple-600 text-white hover:bg-purple-700'
+            }`}
+            onClick={printReport}
+            disabled={scope === 'single' && !selectedKaryawan}
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+              <path
+                fillRule="evenodd"
+                d="M5 4v3H4a2 2 0 00-2 2v3a2 2 0 002 2h1v2a2 2 0 002 2h6a2 2 0 002-2v-2h1a2 2 0 002-2V9a2 2 0 00-2-2h-1V4a2 2 0 00-2-2H7a2 2 0 00-2 2zm8 0H7v3h6V4zm0 8H7v4h6v-4z"
+                clipRule="evenodd"
+              />
+            </svg>
+            Cetak PDF
           </button>
         </div>
       </div>
 
-      {/* Tabel Data untuk Semua Karyawan */}
-      {Object.entries(groupedData).map(([karyawan, data]) => (
-        <div key={karyawan} className="mb-6">
-          <h2 className="text-xl font-semibold mb-2">{karyawan}</h2>
-          <Table
-            columns={columns}
-            data={data.map((item) => [
-              item.id.toString(),
-              item.karyawan_nama,
-              item.tanggal,
-              item.checkin_time,
-              item.checkout_time,
-              item.checkin_lokasi,
-              item.checkout_lokasi,
-              item.status,
-              item.keterangan,
-            ])}
-            onSelectionChange={(indexes) => {
-              // Sesuaikan selectedRows berdasarkan tabel spesifik
-              const globalIndexes = indexes.map((i) => {
-                const offset = presensiData.findIndex((d) => d.id === data[i].id);
-                return offset;
-              });
-              setSelectedRows(globalIndexes);
-            }}
-          />
+      {/* Status Messages */}
+      {error && (
+        <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded">
+          <p>{error}</p>
         </div>
-      ))}
+      )}
 
-      {/* Pagination (Opsional) - Bisa diterapkan per tabel jika diperlukan */}
-      <div className="mt-4 flex justify-end">
-        <button className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Previous</button>
-        <span className="px-4 py-2">Page 1 of 5</span>
-        <button className="px-4 py-2 bg-gray-200 rounded-md hover:bg-gray-300">Next</button>
-      </div>
+      {loading && (
+        <div className="flex justify-center items-center p-8">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+        </div>
+      )}
+
+      {!loading && scope === 'single' && selectedKaryawan && !data && !error && (
+        <div className="bg-yellow-100 border-l-4 border-yellow-500 text-yellow-700 p-4 rounded">
+          <p>Data tidak ditemukan untuk karyawan ini.</p>
+        </div>
+      )}
+
+      {/* Report Content */}
+      {data && (
+        <div className="space-y-6">
+          {/* Single Employee Report */}
+          {scope === 'single' && !Array.isArray(data) && (
+            <>
+              {/* Summary Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Hadir</h3>
+                  <p className="text-2xl font-semibold text-green-600">{data.total_hadir} Hari</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-yellow-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Izin</h3>
+                  <p className="text-2xl font-semibold text-yellow-600">{data.total_izin} Hari</p>
+                </div>
+                <div className="bg-white rounded-lg shadow p-4 border-l-4 border-red-500">
+                  <h3 className="text-sm font-medium text-gray-500">Total Sakit</h3>
+                  <p className="text-2xl font-semibold text-red-600">{data.total_sakit} Hari</p>
+                </div>
+              </div>
+
+              {/* Detail Table */}
+              <div className="bg-white rounded-lg shadow overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Tanggal
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Status
+                        </th>
+                        <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                          Keterangan
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {data.detail.map((item, i) => (
+                        <tr key={i}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <span
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                item.status === 'hadir'
+                                  ? 'bg-green-100 text-green-800'
+                                  : item.status === 'sakit'
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
+                            >
+                              {item.status}
+                            </span>
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="text-sm text-gray-500 truncate max-w-xs">{item.keterangan}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* All Employees Report */}
+          {scope === 'all' && Array.isArray(data) && (
+            <div className="space-y-6">
+              {data.map((report, index) => (
+                <div key={index} className="bg-white rounded-lg shadow overflow-hidden">
+                  <div className="px-6 py-4 border-b border-gray-200">
+                    <h2 className="text-lg font-semibold text-gray-800">
+                      {report.karyawan_nama || `Karyawan ID: ${report.karyawan_id}`}
+                    </h2>
+                  </div>
+
+                  {/* Summary for each employee */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-6">
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Hadir</h3>
+                      <p className="text-xl font-semibold text-green-600">{report.total_hadir} Hari</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Izin</h3>
+                      <p className="text-xl font-semibold text-yellow-600">{report.total_izin} Hari</p>
+                    </div>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <h3 className="text-sm font-medium text-gray-500">Total Sakit</h3>
+                      <p className="text-xl font-semibold text-red-600">{report.total_sakit} Hari</p>
+                    </div>
+                  </div>
+
+                  {/* Detail table for each employee */}
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Tanggal
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Status
+                          </th>
+                          <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                            Keterangan
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {report.detail.map((item, i) => (
+                          <tr key={i}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                              <span
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  item.status === 'hadir'
+                                    ? 'bg-green-100 text-green-800'
+                                    : item.status === 'sakit'
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}
+                              >
+                                {item.status}
+                              </span>
+                            </td>
+                            <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="text-sm text-gray-500 truncate max-w-xs">{item.keterangan}</div>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
-};
-
-export default ReportPage;
+}

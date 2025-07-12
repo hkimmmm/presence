@@ -38,6 +38,14 @@ type Karyawan = {
   nama: string;
 };
 
+interface TokenPayload {
+  user_id: number;
+  username: string;
+  role: string;
+  nama: string;
+  foto_profile: string | null;
+}
+
 export default function LaporanAbsensi() {
   const router = useRouter();
   const [karyawanList, setKaryawanList] = useState<Karyawan[]>([]);
@@ -50,33 +58,45 @@ export default function LaporanAbsensi() {
   const [scope, setScope] = useState<'single' | 'all'>('single');
 
   useEffect(() => {
-    async function fetchKaryawan() {
+    async function fetchUserAndKaryawan() {
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch('/api/employees', {
+        // Verifikasi pengguna dengan /api/me
+        const userResponse = await fetch('/api/me', {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
           credentials: 'include',
         });
 
-        if (!res.ok) {
-          const errorData = await res.json();
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json();
+          throw new Error(errorData.message || 'Gagal memuat data pengguna');
+        }
+
+        const userData: TokenPayload = await userResponse.json();
+        if (!['admin', 'supervisor'].includes(userData.role)) {
+          throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+        }
+
+        // Ambil daftar karyawan
+        const karyawanResponse = await fetch('/api/employees', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!karyawanResponse.ok) {
+          const errorData = await karyawanResponse.json();
           throw new Error(errorData.message || 'Gagal memuat daftar karyawan');
         }
 
-        const json = await res.json();
-        setKaryawanList(json);
+        const karyawanData = await karyawanResponse.json();
+        setKaryawanList(karyawanData);
       } catch (err) {
-        console.error('Gagal memuat karyawan:', err);
-        setError(err instanceof Error ? err.message : 'Gagal memuat daftar karyawan.');
+        console.error('Gagal memuat data:', err);
+        setError(err instanceof Error ? err.message : 'Gagal memuat data.');
         router.push('/auth/login?error=invalid_token');
       }
     }
 
-    fetchKaryawan();
+    fetchUserAndKaryawan();
   }, [router]);
 
   useEffect(() => {
@@ -86,28 +106,40 @@ export default function LaporanAbsensi() {
       setLoading(true);
       setError(null);
       try {
-        const token = localStorage.getItem('token');
+        // Verifikasi pengguna sebelum mengambil laporan
+        const userResponse = await fetch('/api/me', {
+          method: 'GET',
+          credentials: 'include',
+        });
+
+        if (!userResponse.ok) {
+          const errorData = await userResponse.json();
+          throw new Error(errorData.message || 'Gagal memuat data pengguna');
+        }
+
+        const userData: TokenPayload = await userResponse.json();
+        if (!['admin', 'supervisor'].includes(userData.role)) {
+          throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+        }
+
+        // Ambil data laporan
         const url =
           scope === 'single'
             ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}`
             : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}`;
-        const res = await fetch(url, {
+        const reportResponse = await fetch(url, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token && { Authorization: `Bearer ${token}` }),
-          },
           credentials: 'include',
         });
 
-        if (!res.ok) {
-          const errorText = await res.text();
-          console.error('Fetch error:', res.status, errorText);
-          throw new Error(`Gagal fetch: ${res.status} ${errorText}`);
+        if (!reportResponse.ok) {
+          const errorText = await reportResponse.text();
+          console.error('Fetch error:', reportResponse.status, errorText);
+          throw new Error(`Gagal fetch: ${reportResponse.status} ${errorText}`);
         }
 
-        const json = await res.json();
-        setData(json);
+        const reportData = await reportResponse.json();
+        setData(reportData);
       } catch (err) {
         console.error('Gagal mengambil data laporan:', err);
         setData(null);
@@ -125,17 +157,28 @@ export default function LaporanAbsensi() {
 
   const downloadReport = async (format: 'pdf' | 'excel') => {
     try {
-      const token = localStorage.getItem('token');
+      // Verifikasi pengguna sebelum mengunduh
+      const userResponse = await fetch('/api/me', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!userResponse.ok) {
+        const errorData = await userResponse.json();
+        throw new Error(errorData.message || 'Gagal memuat data pengguna');
+      }
+
+      const userData: TokenPayload = await userResponse.json();
+      if (!['admin', 'supervisor'].includes(userData.role)) {
+        throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+      }
+
       const url =
         scope === 'single'
           ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=${format}`
           : `/api/report?scope=all&bulan=${bulan}&tahun=${tahun}&format=${format}`;
       const res = await fetch(url, {
         method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token && { Authorization: `Bearer ${token}` }),
-        },
         credentials: 'include',
       });
 
@@ -163,8 +206,24 @@ export default function LaporanAbsensi() {
     }
   };
 
-  const printReport = () => {
+  const printReport = async () => {
     try {
+      // Verifikasi pengguna sebelum mencetak
+      const userResponse = await fetch('/api/me', {
+        method: 'GET',
+        credentials: 'include',
+      });
+
+      if (!userResponse.ok) {
+        const errorData = await userResponse.json();
+        throw new Error(errorData.message || 'Gagal memuat data pengguna');
+      }
+
+      const userData: TokenPayload = await userResponse.json();
+      if (!['admin', 'supervisor'].includes(userData.role)) {
+        throw new Error('Akses ditolak: Hanya admin atau supervisor yang diizinkan');
+      }
+
       const url =
         scope === 'single'
           ? `/api/report?karyawan_id=${selectedKaryawan}&bulan=${bulan}&tahun=${tahun}&format=pdf&print=direct`
@@ -212,6 +271,9 @@ export default function LaporanAbsensi() {
     } catch (err) {
       console.error('Gagal memulai pencetakan:', err);
       setError('Gagal memulai pencetakan.');
+      if (err instanceof Error && err.message.includes('401')) {
+        router.push('/auth/login?error=invalid_token');
+      }
     }
   };
 
@@ -244,8 +306,8 @@ export default function LaporanAbsensi() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Karyawan</label>
               <select
-                className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                value={selectedKaryawan || ''}
+                className="w-full px-3 py-2 border border-gray-300 text-black rounded-md shadow-sm focus:outline-night focus:ring-blue-500 focus:border-blue-500"
+                value="selectedKaryawan || ''"
                 onChange={(e) => {
                   const val = parseInt(e.target.value);
                   setSelectedKaryawan(isNaN(val) ? null : val);
@@ -297,10 +359,11 @@ export default function LaporanAbsensi() {
         {/* Download and Print Buttons */}
         <div className="flex flex-wrap gap-3 mt-4">
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-blue-600 text-white hover:bg-blue-700'
-              }`}
+            }`}
             onClick={() => downloadReport('pdf')}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -314,10 +377,11 @@ export default function LaporanAbsensi() {
             Unduh PDF
           </button>
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-green-600 text-white hover:bg-green-700'
-              }`}
+            }`}
             onClick={() => downloadReport('excel')}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -331,10 +395,11 @@ export default function LaporanAbsensi() {
             Unduh Excel
           </button>
           <button
-            className={`px-4 py-2 rounded-md flex items-center gap-2 ${scope === 'single' && !selectedKaryawan
+            className={`px-4 py-2 rounded-md flex items-center gap-2 ${
+              scope === 'single' && !selectedKaryawan
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                 : 'bg-purple-600 text-white hover:bg-purple-700'
-              }`}
+            }`}
             onClick={printReport}
             disabled={scope === 'single' && !selectedKaryawan}
           >
@@ -414,12 +479,13 @@ export default function LaporanAbsensi() {
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                             <span
-                              className={`px-2 py-1 rounded-full text-xs ${item.status === 'hadir'
+                              className={`px-2 py-1 rounded-full text-xs ${
+                                item.status === 'hadir'
                                   ? 'bg-green-100 text-green-800'
                                   : item.status === 'sakit'
-                                    ? 'bg-red-100 text-red-800'
-                                    : 'bg-yellow-100 text-yellow-800'
-                                }`}
+                                  ? 'bg-red-100 text-red-800'
+                                  : 'bg-yellow-100 text-yellow-800'
+                              }`}
                             >
                               {item.status}
                             </span>
@@ -485,12 +551,13 @@ export default function LaporanAbsensi() {
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{item.tanggal}</td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                               <span
-                                className={`px-2 py-1 rounded-full text-xs ${item.status === 'hadir'
+                                className={`px-2 py-1 rounded-full text-xs ${
+                                  item.status === 'hadir'
                                     ? 'bg-green-100 text-green-800'
                                     : item.status === 'sakit'
-                                      ? 'bg-red-100 text-red-800'
-                                      : 'bg-yellow-100 text-yellow-800'
-                                  }`}
+                                    ? 'bg-red-100 text-red-800'
+                                    : 'bg-yellow-100 text-yellow-800'
+                                }`}
                               >
                                 {item.status}
                               </span>
