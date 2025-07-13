@@ -1,3 +1,5 @@
+import Image from 'next/image'; // Impor komponen Image dari Next.js
+
 export default function AboutContent() {
   return (
     <section className="container mx-auto py-12 px-4">
@@ -54,13 +56,19 @@ export default function AboutContent() {
         <h2 className="text-2xl font-bold mb-8 text-center">Tim Kami</h2>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[
-            { name: "Budi Santoso", position: "Direktur Utama" },
-            { name: "Ani Wijaya", position: "Manajer Pemasaran" },
-            { name: "Rudi Hermawan", position: "Manajer Operasional" },
-            { name: "Siti Aminah", position: "Customer Service" },
+            { name: "Handayani", position: "Supervisor", image: "/images/karyawan/Handayani.jpg" },
+            { name: "Nurranisa", position: "Admin", image: "/images/karyawan/Nurranisa.jpg" },
+            { name: "Mohamad Iqbal Mustaqim", position: "Sales", image: "/images/karyawan/Iqbal.jpg" },
+            { name: "Nazri Adlani", position: "Sales", image: "/images/karyawan/Nazri Adlani.jpg" },
           ].map((member, index) => (
             <div key={index} className="bg-white p-4 rounded-lg shadow text-center">
-              <div className="w-24 h-24 mx-auto bg-gray-200 rounded-full mb-3"></div>
+              <Image
+                src={member.image}
+                alt={`${member.name}'s profile`}
+                width={96} // Sesuai dengan w-24 (24 * 4 = 96px)
+                height={96} // Sesuai dengan h-24 (24 * 4 = 96px)
+                className="mx-auto rounded-full mb-3 object-cover"
+              />
               <h4 className="font-semibold">{member.name}</h4>
               <p className="text-sm text-gray-600">{member.position}</p>
             </div>
