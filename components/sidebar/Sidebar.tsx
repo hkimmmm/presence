@@ -90,7 +90,7 @@ export default function Sidebar() {
 
   return (
 <aside
-  className={`bg-white shadow-md w-64 fixed top-0 left-0 h-screen z-50 transition-transform duration-300
+  className={`bg-blue-300 shadow-md w-64 fixed top-0 left-0 h-screen z-50 transition-transform duration-300
     ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
     md:translate-x-0`}
 >
@@ -131,7 +131,7 @@ export default function Sidebar() {
   </nav>
 
   {/* User Info and Logout Section */}
-  <div className="w-64 p-4 bg-white border-t fixed bottom-0 left-0">
+  <div className="w-64 p-4 bg-blue-300 border-t fixed bottom-0 left-0">
     <div className="flex items-center gap-3 mb-2">
       <Image
         src={user.image}

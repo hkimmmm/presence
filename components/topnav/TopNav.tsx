@@ -2,7 +2,7 @@
 import { Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
 import TopNavRightBox from './rightbox/TopNavRightBox';
 import { useSidebar } from '@/context/SidebarContext';
-import SearchBox from './searchbox/SearchBox';
+// import SearchBox from './searchbox/SearchBox';
 
 export default function TopNav() {
   const { toggleSidebar } = useSidebar();
@@ -17,7 +17,7 @@ export default function TopNav() {
         >
           <Bars3BottomLeftIcon className="h-6 w-6 text-gray-600" />
         </button>
-        <SearchBox />
+        {/* <SearchBox /> */}
       </div>
       <TopNavRightBox />
     </header>

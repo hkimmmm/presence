@@ -2,13 +2,13 @@
 import { Bars3BottomLeftIcon } from '@heroicons/react/24/outline';
 import TopNavRightBox from './rightbox/TopNavRightBox';
 import { useSidebar } from '@/context/SidebarContext';
-import SearchBox from './searchbox/SearchBox';
+// import SearchBox from './searchbox/SearchBox';
 
 export default function TopNav() {
   const { toggleSidebar } = useSidebar();
 
   return (
-    <header className="bg-blue-300 shadow-md p-[23px] flex justify-between items-center w-full border-b">
+    <header className="bg-blue-300 shadow-md p-[24px] flex justify-between items-center w-full border-b">
       <div className="flex items-center space-x-4">
         {/* Tombol Toggle Sidebar hanya muncul di layar kecil */}
         <button 
@@ -17,7 +17,7 @@ export default function TopNav() {
         >
           <Bars3BottomLeftIcon className="h-6 w-6 text-gray-600" />
         </button>
-        <SearchBox />
+        {/* <SearchBox /> */}
       </div>
       <TopNavRightBox />
     </header>
