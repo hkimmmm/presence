@@ -224,7 +224,7 @@ export async function GET(req: NextRequest) {
 
         reportData.forEach((report, index) => {
           // Employee Info
-          worksheet.addRow(['Karyawan:', report.karyawan_nama || `ID: ${report.karyawan_id}`]);
+          worksheet.addRow(['Sales:', report.karyawan_nama || `ID: ${report.karyawan_id}`]);
           if (worksheet.lastRow) {
             worksheet.getCell(`A${worksheet.lastRow.number}`).font = {
               name: 'Times New Roman',
@@ -410,7 +410,7 @@ export async function GET(req: NextRequest) {
           // Employee Info
           doc.fontSize(12)
             .fillColor('#000000')
-            .text(`Karyawan: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
+            .text(`Sales: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
           doc.moveDown(1);
 
           // Table
