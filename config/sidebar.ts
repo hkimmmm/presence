@@ -21,7 +21,7 @@ import {
       icon: UserGroupIcon,
     },
       {
-      name: 'Data Sales',
+      name: 'Kelola Sales',
       href: '/dashboard/employee',
       icon: BriefcaseIcon,
     },

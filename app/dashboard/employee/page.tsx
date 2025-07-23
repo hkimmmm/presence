@@ -1,7 +1,7 @@
 import EmployeList from "@/components/page/Employee";
 export const metadata = {
-    title: 'Employee',
-    description: 'Daftar Sales',
+    title: 'Kelola Sales',
+    description: 'Kelola Sales',
   };
 
 const EmployePage = () => {

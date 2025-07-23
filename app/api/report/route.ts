@@ -104,6 +104,7 @@ export async function GET(req: NextRequest) {
           select: {
             tanggal: true,
             status: true,
+            checkin_time: true,
           },
         });
         console.log(`Presensi untuk karyawan_id ${karyawan.id}:`, JSON.stringify(presensiRows, null, 2));
@@ -151,7 +152,7 @@ export async function GET(req: NextRequest) {
 
         // Generate data for all days in the month
         const daysInMonth = new Date(tahun, bulan, 0).getDate();
-        const byTanggal: Record<string, { tanggal: string; status: string }> = {};
+        const byTanggal: Record<string, { tanggal: string; status: string; waktu_masuk?: string }> = {};
         for (let day = 1; day <= daysInMonth; day++) {
           const date = new Date(tahun, bulan - 1, day).toISOString().split('T')[0];
           byTanggal[date] = { tanggal: date, status: '-' };
@@ -161,9 +162,12 @@ export async function GET(req: NextRequest) {
           byTanggal[row.tanggal] = { tanggal: row.tanggal, status: row.status };
         });
         presensiRows.forEach((row) => {
-          byTanggal[row.tanggal.toISOString().split('T')[0]] = {
-            tanggal: row.tanggal.toISOString().split('T')[0],
+          const tanggal = row.tanggal.toISOString().split('T')[0];
+          const waktu_masuk = row.checkin_time ? row.checkin_time.toISOString().slice(11, 16) : '-';
+          byTanggal[tanggal] = {
+            tanggal,
             status: row.status || '-',
+            waktu_masuk,
           };
         });
 
@@ -194,7 +198,7 @@ export async function GET(req: NextRequest) {
         const worksheet = workbook.addWorksheet('Laporan Absensi');
 
         // Header
-        worksheet.mergeCells('A1:F1');
+        worksheet.mergeCells('A1:G1');
         worksheet.getCell('A1').value = 'CV CITRA BUANA CEMERLANG';
         worksheet.getCell('A1').font = {
           name: 'Times New Roman',
@@ -207,7 +211,7 @@ export async function GET(req: NextRequest) {
           horizontal: 'center',
         };
 
-        worksheet.mergeCells('A2:F2');
+        worksheet.mergeCells('A2:G2');
         worksheet.getCell('A2').value = `LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`;
         worksheet.getCell('A2').font = {
           name: 'Times New Roman',
@@ -224,18 +228,35 @@ export async function GET(req: NextRequest) {
 
         reportData.forEach((report, index) => {
           // Employee Info
-          worksheet.addRow(['Sales:', report.karyawan_nama || `ID: ${report.karyawan_id}`]);
+          worksheet.addRow(['Nama:', report.karyawan_nama || `ID: ${report.karyawan_id}`]);
+          worksheet.addRow(['Bagian:', 'Sales']);
           if (worksheet.lastRow) {
+            worksheet.getCell(`A${worksheet.lastRow.number - 1}`).font = {
+              name: 'Times New Roman',
+              size: 12,
+              bold: true,
+              color: { argb: 'FF000000' },
+            };
             worksheet.getCell(`A${worksheet.lastRow.number}`).font = {
               name: 'Times New Roman',
               size: 12,
               bold: true,
               color: { argb: 'FF000000' },
             };
+            worksheet.getCell(`B${worksheet.lastRow.number - 1}`).font = {
+              name: 'Times New Roman',
+              size: 12,
+              color: { argb: 'FF000000' },
+            };
+            worksheet.getCell(`B${worksheet.lastRow.number}`).font = {
+              name: 'Times New Roman',
+              size: 12,
+              color: { argb: 'FF000000' },
+            };
           }
 
           // Table Headers
-          worksheet.addRow(['No', 'Tanggal', 'Status', '', 'No', 'Tanggal', 'Status']);
+          worksheet.addRow(['No', 'Tanggal', 'Waktu Masuk', 'Status', '', 'No', 'Tanggal', 'Waktu Masuk', 'Status']);
           const headerRow = worksheet.lastRow;
           if (headerRow) {
             headerRow.font = {
@@ -262,12 +283,14 @@ export async function GET(req: NextRequest) {
           // Set column widths
           worksheet.columns = [
             { key: 'no1', width: 5 },
-            { key: 'tanggal1', width: 15 },
-            { key: 'status1', width: 10 },
+            { key: 'tanggal1', width: 12 },
+            { key: 'waktu_masuk1', width: 15 },
+            { key: 'status1', width: 8 },
             { key: 'spacer', width: 5 },
             { key: 'no2', width: 5 },
-            { key: 'tanggal2', width: 15 },
-            { key: 'status2', width: 10 },
+            { key: 'tanggal2', width: 12 },
+            { key: 'waktu_masuk2', width: 15 },
+            { key: 'status2', width: 8 },
           ];
 
           // Split detail into two columns (1-15 and 16-31)
@@ -276,15 +299,17 @@ export async function GET(req: NextRequest) {
           const maxRows = Math.max(leftColumn.length, rightColumn.length);
 
           for (let i = 0; i < maxRows; i++) {
-            const left = leftColumn[i] || { tanggal: '-', status: '-' };
-            const right = rightColumn[i] || { tanggal: '-', status: '-' };
+            const left = leftColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
+            const right = rightColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
             const row = worksheet.addRow([
               leftColumn[i] ? i + 1 : '',
               left.tanggal,
+              left.waktu_masuk || '-',
               left.status,
               '',
               rightColumn[i] ? i + 16 : '',
               right.tanggal,
+              right.waktu_masuk || '-',
               right.status,
             ]);
             row.font = {
@@ -330,7 +355,9 @@ export async function GET(req: NextRequest) {
         });
 
         worksheet.getColumn(2).numFmt = 'dd-mmm-yyyy';
-        worksheet.getColumn(5).numFmt = 'dd-mmm-yyyy';
+        worksheet.getColumn(7).numFmt = 'dd-mmm-yyyy';
+        worksheet.getColumn(3).numFmt = 'hh:mm';
+        worksheet.getColumn(8).numFmt = 'hh:mm';
 
         const buffer = await workbook.xlsx.writeBuffer();
         return new NextResponse(Buffer.from(buffer), {
@@ -410,26 +437,29 @@ export async function GET(req: NextRequest) {
           // Employee Info
           doc.fontSize(12)
             .fillColor('#000000')
-            .text(`Sales: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
+            .text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y)
+            .text(`Bagian: Sales`, 40, doc.y + 15);
           doc.moveDown(1);
 
           // Table
           const tableTop = doc.y;
-          const col1Left = 40, col2Left = 60, col3Left = 120;
-          const col1Right = 310, col2Right = 330, col3Right = 390;
+          const col1Left = 40, col2Left = 60, col3Left = 110, col4Left = 190;
+          const col1Right = 310, col2Right = 330, col3Right = 380, col4Right = 460;
           const rowHeight = 20;
 
           // Table Headers
-          doc.rect(col1Left, tableTop - 5, 230, rowHeight).fill('#D3D3D3');
-          doc.rect(col1Right, tableTop - 5, 230, rowHeight).fill('#D3D3D3');
+          doc.rect(col1Left, tableTop - 5, 250, rowHeight).fill('#D3D3D3');
+          doc.rect(col1Right, tableTop - 5, 250, rowHeight).fill('#D3D3D3');
           doc.fontSize(12)
             .fillColor('#000000')
             .text('No', col1Left, tableTop, { align: 'left', width: 20 })
-            .text('Tanggal', col2Left, tableTop, { align: 'center', width: 60 })
-            .text('Status', col3Left, tableTop, { align: 'left', width: 100 })
+            .text('Tanggal', col2Left, tableTop, { align: 'center', width: 50 })
+            .text('Waktu Masuk', col3Left, tableTop, { align: 'center', width: 80 })
+            .text('Status', col4Left, tableTop, { align: 'left', width: 80 })
             .text('No', col1Right, tableTop, { align: 'left', width: 20 })
-            .text('Tanggal', col2Right, tableTop, { align: 'center', width: 60 })
-            .text('Status', col3Right, tableTop, { align: 'left', width: 100 });
+            .text('Tanggal', col2Right, tableTop, { align: 'center', width: 50 })
+            .text('Waktu Masuk', col3Right, tableTop, { align: 'center', width: 80 })
+            .text('Status', col4Right, tableTop, { align: 'left', width: 80 });
 
           doc.moveDown(1);
 
@@ -440,22 +470,24 @@ export async function GET(req: NextRequest) {
 
           for (let i = 0; i < maxRows; i++) {
             const rowTop = doc.y;
-            const left = leftColumn[i] || { tanggal: '-', status: '-' };
-            const right = rightColumn[i] || { tanggal: '-', status: '-' };
+            const left = leftColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
+            const right = rightColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
 
             if (i % 2 === 0) {
-              doc.rect(col1Left, rowTop - 5, 230, rowHeight).fill('#F5F6F5');
-              doc.rect(col1Right, rowTop - 5, 230, rowHeight).fill('#F5F6F5');
+              doc.rect(col1Left, rowTop - 5, 250, rowHeight).fill('#F5F6F5');
+              doc.rect(col1Right, rowTop - 5, 250, rowHeight).fill('#F5F6F5');
             }
 
             doc.fillColor('#000000')
               .fontSize(12)
               .text(leftColumn[i] ? `${i + 1}` : '', col1Left, rowTop, { align: 'left', width: 20 })
-              .text(left.tanggal, col2Left, rowTop, { align: 'left', width: 60 })
-              .text(left.status, col3Left, rowTop, { align: 'left', width: 100 })
+              .text(left.tanggal, col2Left, rowTop, { align: 'left', width: 50 })
+              .text(left.waktu_masuk || '-', col3Left, rowTop, { align: 'center', width: 80 })
+              .text(left.status, col4Left, rowTop, { align: 'left', width: 80 })
               .text(rightColumn[i] ? `${i + 16}` : '', col1Right, rowTop, { align: 'left', width: 20 })
-              .text(right.tanggal, col2Right, rowTop, { align: 'left', width: 60 })
-              .text(right.status, col3Right, rowTop, { align: 'left', width: 100 });
+              .text(right.tanggal, col2Right, rowTop, { align: 'left', width: 50 })
+              .text(right.waktu_masuk || '-', col3Right, rowTop, { align: 'center', width: 80 })
+              .text(right.status, col4Right, rowTop, { align: 'left', width: 80 });
 
             doc.moveDown(1);
           }

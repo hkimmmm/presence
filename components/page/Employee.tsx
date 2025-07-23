@@ -226,7 +226,7 @@ const EmployeeList: React.FC = () => {
   return (
     <div className="space-y-4 max-w-5xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 p-4">
-        <h1 className="text-2xl font-bold text-gray-800">Daftar Sales</h1>
+        <h1 className="text-2xl font-bold text-gray-800">Kelola Sales</h1>
         <div className="flex items-center gap-4">
           {/* Delete button */}
           <button

@@ -6,7 +6,6 @@ import QRCode from 'react-qr-code';
 import { useRouter } from 'next/navigation';
 
 type QRType = 'checkin' | 'checkout';
-type Karyawan = { id: number; nama: string };
 
 export default function QRGeneratorPage() {
   const [qrData, setQrData] = useState<string>('');
@@ -14,16 +13,13 @@ export default function QRGeneratorPage() {
   const [isActive, setIsActive] = useState<boolean>(false);
   const [qrType, setQrType] = useState<QRType | ''>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [karyawanList, setKaryawanList] = useState<Karyawan[]>([]);
-  const [selectedKaryawanId, setSelectedKaryawanId] = useState<number | null>(null);
-  const [isMassQR, setIsMassQR] = useState<boolean>(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const qrRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
 
-  // Check admin role and fetch karyawan list
+  // Check admin role
   useEffect(() => {
-    const checkAdminAndFetchKaryawan = async () => {
+    const checkAdmin = async () => {
       try {
         const userResponse = await fetch('/api/me', {
           method: 'GET',
@@ -34,74 +30,21 @@ export default function QRGeneratorPage() {
         if (!userResponse.ok || userResult.role !== 'admin') {
           throw new Error(userResult.message || 'Akses ditolak: Hanya admin yang diizinkan');
         }
-
-        const karyawanResponse = await fetch('/api/employees', {
-          method: 'GET',
-          credentials: 'include',
-        });
-
-        if (!karyawanResponse.ok) {
-          const errorData = await karyawanResponse.json();
-          throw new Error(errorData.message || 'Gagal mengambil daftar karyawan');
-        }
-
-        const karyawanData: Karyawan[] = await karyawanResponse.json();
-        setKaryawanList(karyawanData);
       } catch (error: any) {
-        console.error('Error checking admin or fetching karyawan:', error);
+        console.error('Error checking admin:', error);
         setErrorMessage(error.message || 'Gagal memuat halaman');
         router.push('/auth/login?error=invalid_token');
       }
     };
 
-    checkAdminAndFetchKaryawan();
+    checkAdmin();
   }, [router]);
 
-  // Fetch active presensiId (for individual mode)
-  async function fetchActivePresensiId(karyawanId?: number): Promise<number> {
-    try {
-      let url = '/api/presence';
-      if (karyawanId) {
-        url += `?karyawan_id=${karyawanId}`;
-      }
-
-      const res = await fetch(url, {
-        method: 'GET',
-        credentials: 'include',
-      });
-
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message || 'Gagal mengambil presensi');
-      }
-
-      const presensiList = await res.json();
-      const activePresensi = presensiList.find((p: any) => p.checkout_time === null);
-      if (!activePresensi) {
-        throw new Error('Tidak ada presensi aktif');
-      }
-      return activePresensi.id;
-    } catch (error: any) {
-      console.error('Error fetching presensiId:', error);
-      setErrorMessage(error.message || 'Gagal mengambil presensi');
-      throw error;
-    }
-  }
-
-  // Generate QR code
-  async function generateQR(type: QRType, karyawanId?: number) {
+  // Generate QR code for mass check-in/check-out
+  async function generateQR(type: QRType) {
     try {
       setErrorMessage(null);
-      const body: any = { type, is_mass_qr: isMassQR };
-
-      if (!isMassQR) {
-        if (!karyawanId) {
-          throw new Error('Silakan pilih karyawan terlebih dahulu');
-        }
-        const presensiId = await fetchActivePresensiId(karyawanId);
-        body.presensiId = presensiId.toString();
-        body.karyawan_id = karyawanId;
-      }
+      const body = { type, is_mass_qr: true };
 
       const res = await fetch('/api/generate-qr', {
         method: 'POST',
@@ -121,7 +64,7 @@ export default function QRGeneratorPage() {
       setQrData(data.qrCode);
       setQrType(type);
       setIsActive(true);
-      setTimeLeft(isMassQR ? Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000) : 300);
+      setTimeLeft(Math.floor((new Date(data.expiresAt).getTime() - Date.now()) / 1000));
     } catch (error: any) {
       console.error('Error generating QR:', error);
       setErrorMessage(error.message || 'Gagal membuat QR code');
@@ -196,50 +139,18 @@ export default function QRGeneratorPage() {
           </div>
         )}
 
-        <div>
-          <label className="flex text-black items-center">
-            <input
-              type="checkbox"
-              checked={isMassQR}
-              onChange={(e) => setIsMassQR(e.target.checked)}
-              className="mr-2"
-            />
-            Buat QR Code Massal
-          </label>
-        </div>
-        {!isMassQR && (
-          <div>
-            <label htmlFor="karyawan" className="block text-sm font-medium text-gray-700">
-              Pilih Karyawan
-            </label>
-            <select
-              id="karyawan"
-              value={selectedKaryawanId || ''}
-              onChange={(e) => setSelectedKaryawanId(Number(e.target.value) || null)}
-              className="mt-1 block w-full border border-gray-300 text-black rounded-md shadow-sm p-2"
-            >
-              <option value="">Pilih karyawan</option>
-              {karyawanList.map((karyawan) => (
-                <option key={karyawan.id} value={karyawan.id}>
-                  {karyawan.nama}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-
         <div className="flex space-x-4">
           <button
-            onClick={() => generateQR('checkin', selectedKaryawanId ?? undefined)}
+            onClick={() => generateQR('checkin')}
             className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
           >
-            Generate Check-In QR
+            Generate QR Code Masuk
           </button>
           <button
-            onClick={() => generateQR('checkout', selectedKaryawanId ?? undefined)}
+            onClick={() => generateQR('checkout')}
             className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition"
           >
-            Generate Check-Out QR
+            Generate QR Code Pulang
           </button>
         </div>
 
@@ -247,9 +158,7 @@ export default function QRGeneratorPage() {
           {qrData ? (
             <div className="flex flex-col items-center">
               <h2 className="text-xl font-semibold mb-4 text-gray-700">
-                {isMassQR
-                  ? `QR Code ${qrType === 'checkin' ? 'Check-In' : 'Check-Out'} (Massal)`
-                  : `QR Code ${qrType === 'checkin' ? 'Check-In' : 'Check-Out'}`}
+                QR Code {qrType === 'checkin' ? 'Masuk' : 'Pulang'}
               </h2>
               <div ref={qrRef} className="mb-4 p-4 bg-white rounded border border-gray-300">
                 <QRCode value={qrData} size={256} bgColor="#FFFFFF" fgColor="#000000" level="Q" />
@@ -274,7 +183,7 @@ export default function QRGeneratorPage() {
             <div className="p-12 border-2 border-dashed border-gray-300 rounded-lg text-center">
               <p className="text-gray-500">Belum ada QR code yang di-generate</p>
               <p className="text-sm text-gray-400 mt-2">
-                Klik salah satu tombol di atas untuk membuat QR code
+                Klik salah satu tombol di atas untuk membuat QR code massal
               </p>
             </div>
           )}

@@ -4,13 +4,11 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { 
   TrashIcon, 
-  PlusIcon, 
   XMarkIcon, 
   CheckIcon, 
   FunnelIcon, 
   MagnifyingGlassIcon 
 } from '@heroicons/react/24/outline';
-import Button from '@/components/ui/Button';
 import Modal from "@/components/ui/Modal";
 import InputField from '@/components/ui/InputField';
 import Table from '@/components/ui/Table';
@@ -381,14 +379,13 @@ export default function PresencePage() {
           <div className="relative">
             <button 
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className="flex items-center gap-2 bg-white shadow-md rounded-md border border-gray-200 px-3 py-2"
+              className="p-2 bg-gray-100 rounded-md hover:bg-gray-200 focus:outline-none"
             >
               <FunnelIcon className="w-5 h-5 text-gray-600" />
-              <span className='text-black'>Filter</span>
             </button>
             
             {isFilterOpen && (
-              <div className="absolute right-0 mt-2 w-32 bg-white shadow-md rounded-md border border-gray-200 z-10">
+              <div className="absolute right-0 mt-2 w-32 bg-white shadow-md rounded-md border border-gray-200">
                 <ul className="text-sm text-gray-700">
                   {FILTER_OPTIONS.map(option => (
                     <li key={option.value}>
@@ -410,15 +407,6 @@ export default function PresencePage() {
             )}
           </div>
 
-          {/* Check-in Button */}
-          <Button
-            variant="primary"
-            onClick={() => router.push('/dashboard/presence/checkin')}
-            className="flex items-center gap-1 px-1.5 py-2.5 text-sm"
-          >
-            <PlusIcon className="w-4 h-4" />
-            Check-in
-          </Button>
         </div>
       </div>
 
