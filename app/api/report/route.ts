@@ -105,6 +105,7 @@ export async function GET(req: NextRequest) {
             tanggal: true,
             status: true,
             checkin_time: true,
+            checkout_time: true,
           },
         });
         console.log(`Presensi untuk karyawan_id ${karyawan.id}:`, JSON.stringify(presensiRows, null, 2));
@@ -152,7 +153,7 @@ export async function GET(req: NextRequest) {
 
         // Generate data for all days in the month
         const daysInMonth = new Date(tahun, bulan, 0).getDate();
-        const byTanggal: Record<string, { tanggal: string; status: string; waktu_masuk?: string }> = {};
+        const byTanggal: Record<string, { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }> = {};
         for (let day = 1; day <= daysInMonth; day++) {
           const date = new Date(tahun, bulan - 1, day).toISOString().split('T')[0];
           byTanggal[date] = { tanggal: date, status: '-' };
@@ -164,10 +165,12 @@ export async function GET(req: NextRequest) {
         presensiRows.forEach((row) => {
           const tanggal = row.tanggal.toISOString().split('T')[0];
           const waktu_masuk = row.checkin_time ? row.checkin_time.toISOString().slice(11, 16) : '-';
+          const waktu_pulang = row.checkout_time ? row.checkout_time.toISOString().slice(11, 16) : '-';
           byTanggal[tanggal] = {
             tanggal,
             status: row.status || '-',
             waktu_masuk,
+            waktu_pulang,
           };
         });
 
@@ -256,7 +259,7 @@ export async function GET(req: NextRequest) {
           }
 
           // Table Headers
-          worksheet.addRow(['No', 'Tanggal', 'Waktu Masuk', 'Status', '', 'No', 'Tanggal', 'Waktu Masuk', 'Status']);
+          worksheet.addRow(['No', 'Tanggal', 'Waktu Masuk', 'Waktu Pulang', 'Status', '', 'No', 'Tanggal', 'Waktu Masuk', 'Waktu Pulang', 'Status']);
           const headerRow = worksheet.lastRow;
           if (headerRow) {
             headerRow.font = {
@@ -284,12 +287,14 @@ export async function GET(req: NextRequest) {
           worksheet.columns = [
             { key: 'no1', width: 5 },
             { key: 'tanggal1', width: 12 },
-            { key: 'waktu_masuk1', width: 15 },
+            { key: 'waktu_masuk1', width: 12 },
+            { key: 'waktu_pulang1', width: 12 },
             { key: 'status1', width: 8 },
             { key: 'spacer', width: 5 },
             { key: 'no2', width: 5 },
             { key: 'tanggal2', width: 12 },
-            { key: 'waktu_masuk2', width: 15 },
+            { key: 'waktu_masuk2', width: 12 },
+            { key: 'waktu_pulang2', width: 12 },
             { key: 'status2', width: 8 },
           ];
 
@@ -299,17 +304,19 @@ export async function GET(req: NextRequest) {
           const maxRows = Math.max(leftColumn.length, rightColumn.length);
 
           for (let i = 0; i < maxRows; i++) {
-            const left = leftColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
-            const right = rightColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
+            const left = leftColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-', waktu_pulang: '-' };
+            const right = rightColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-', waktu_pulang: '-' };
             const row = worksheet.addRow([
               leftColumn[i] ? i + 1 : '',
               left.tanggal,
               left.waktu_masuk || '-',
+              left.waktu_pulang || '-',
               left.status,
               '',
               rightColumn[i] ? i + 16 : '',
               right.tanggal,
               right.waktu_masuk || '-',
+              right.waktu_pulang || '-',
               right.status,
             ]);
             row.font = {
@@ -358,6 +365,8 @@ export async function GET(req: NextRequest) {
         worksheet.getColumn(7).numFmt = 'dd-mmm-yyyy';
         worksheet.getColumn(3).numFmt = 'hh:mm';
         worksheet.getColumn(8).numFmt = 'hh:mm';
+        worksheet.getColumn(4).numFmt = 'hh:mm';
+        worksheet.getColumn(9).numFmt = 'hh:mm';
 
         const buffer = await workbook.xlsx.writeBuffer();
         return new NextResponse(Buffer.from(buffer), {
@@ -368,159 +377,206 @@ export async function GET(req: NextRequest) {
             'Content-Disposition': `attachment; filename=Laporan_Absensi_${monthNames[bulan - 1]}_${tahun}.xlsx`,
           },
         });
-      } else if (format === 'pdf') {
-        const fontPath = path.resolve('public/fonts/times.ttf');
-        const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
+      }  else if (format === 'pdf') {
+  const fontPath = path.resolve('public/fonts/times.ttf');
+  const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
 
-        console.log('Font path:', fontPath, 'exists:', fs.existsSync(fontPath));
-        console.log('Logo path:', logoPath, 'exists:', fs.existsSync(logoPath));
+  console.log('Font path:', fontPath, 'exists:', fs.existsSync(fontPath));
+  console.log('Logo path:', logoPath, 'exists:', fs.existsSync(logoPath));
 
-        if (!fs.existsSync(fontPath)) {
-          console.error(`File font tidak ditemukan di ${fontPath}`);
-          throw new Error(`File font tidak ditemukan di ${fontPath}`);
-        }
+  if (!fs.existsSync(fontPath)) {
+    console.error(`File font tidak ditemukan di ${fontPath}`);
+    throw new Error(`File font tidak ditemukan di ${fontPath}`);
+  }
 
-        const doc = new PDFDocument({
-          margin: 40,
-          font: fontPath,
-          info: { Title: 'Laporan Absensi CV Citra Buana Cemerlang' },
-        });
-        const buffers: Uint8Array[] = [];
+  const doc = new PDFDocument({
+    margin: 40,
+    font: fontPath,
+    size: 'A4',
+    info: { Title: 'Laporan Absensi CV Citra Buana Cemerlang' },
+  });
+  const buffers: Uint8Array[] = [];
 
-        doc.on('data', (chunk: Uint8Array) => buffers.push(chunk));
+  doc.on('data', (chunk: Uint8Array) => buffers.push(chunk));
 
-        try {
-          doc.registerFont('TimesNewRoman', fontPath);
-          doc.font('TimesNewRoman');
-        } catch (fontError) {
-          console.error('Gagal memuat font TimesNewRoman:', fontError);
-          throw new Error('Gagal memuat font TimesNewRoman');
-        }
+  try {
+    doc.registerFont('TimesNewRoman', fontPath);
+    doc.font('TimesNewRoman');
+  } catch (fontError) {
+    console.error('Gagal memuat font TimesNewRoman:', fontError);
+    throw new Error('Gagal memuat font TimesNewRoman');
+  }
 
-        reportData.forEach((report, index) => {
-          if (index > 0) {
-            doc.addPage();
-          }
+  reportData.forEach((report, index) => {
+    if (index > 0) {
+      doc.addPage();
+    }
 
-          // Header
-          if (fs.existsSync(logoPath)) {
-            doc.image(logoPath, 40, 30, {
-              width: 60,
-              height: 60,
-              align: 'center',
-              valign: 'center',
-            });
-            doc.fontSize(16)
-              .fillColor('#000000')
-              .font('TimesNewRoman')
-              .text('CV CITRA BUANA CEMERLANG', 110, 40, { align: 'center' });
-            doc.fontSize(14)
-              .fillColor('#000000')
-              .text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 110, 65, { align: 'center' });
-          } else {
-            doc.fontSize(16)
-              .fillColor('#000000')
-              .font('TimesNewRoman')
-              .text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
-            doc.fontSize(14)
-              .fillColor('#000000')
-              .text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
-          }
+    // Header for First Page (Days 1-15)
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 40, 30, { width: 60, height: 60, align: 'center', valign: 'center' });
+      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 110, 40, { align: 'center' });
+      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 110, 65, { align: 'center' });
+    } else {
+      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
+      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
+    }
 
-          doc.lineWidth(1)
-            .moveTo(40, 90)
-            .lineTo(550, 90)
-            .stroke();
+    doc.lineWidth(1).moveTo(40, 90).lineTo(550, 90).stroke();
+    doc.moveDown(2);
 
-          doc.moveDown(2);
+    // Employee Info
+    doc.fontSize(12).fillColor('#000000').text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
+    doc.text(`Bagian: Sales`, 40, doc.y + 15);
+    let currentY = doc.y + 20;
 
-          // Employee Info
-          doc.fontSize(12)
-            .fillColor('#000000')
-            .text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y)
-            .text(`Bagian: Sales`, 40, doc.y + 15);
-          doc.moveDown(1);
+    // Table Configuration for First Page (Days 1-15)
+    const col1Left = 40, col2Left = 100, col3Left = 200, col4Left = 300, col5Left = 400;
+    const rowHeight = 20;
 
-          // Table
-          const tableTop = doc.y;
-          const col1Left = 40, col2Left = 60, col3Left = 110, col4Left = 190;
-          const col1Right = 310, col2Right = 330, col3Right = 380, col4Right = 460;
-          const rowHeight = 20;
+    // Table Headers for First Page
+    doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+    doc.fontSize(12).fillColor('#000000')
+      .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
+      .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+      .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+      .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+      .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+    currentY += rowHeight;
 
-          // Table Headers
-          doc.rect(col1Left, tableTop - 5, 250, rowHeight).fill('#D3D3D3');
-          doc.rect(col1Right, tableTop - 5, 250, rowHeight).fill('#D3D3D3');
-          doc.fontSize(12)
-            .fillColor('#000000')
-            .text('No', col1Left, tableTop, { align: 'left', width: 20 })
-            .text('Tanggal', col2Left, tableTop, { align: 'center', width: 50 })
-            .text('Waktu Masuk', col3Left, tableTop, { align: 'center', width: 80 })
-            .text('Status', col4Left, tableTop, { align: 'left', width: 80 })
-            .text('No', col1Right, tableTop, { align: 'left', width: 20 })
-            .text('Tanggal', col2Right, tableTop, { align: 'center', width: 50 })
-            .text('Waktu Masuk', col3Right, tableTop, { align: 'center', width: 80 })
-            .text('Status', col4Right, tableTop, { align: 'left', width: 80 });
+    // Data for First Page (Days 1-15)
+    const leftColumn = report.detail.slice(0, 15);
 
-          doc.moveDown(1);
-
-          // Split detail into two columns
-          const leftColumn = report.detail.slice(0, 15);
-          const rightColumn = report.detail.slice(15, 31);
-          const maxRows = Math.max(leftColumn.length, rightColumn.length);
-
-          for (let i = 0; i < maxRows; i++) {
-            const rowTop = doc.y;
-            const left = leftColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
-            const right = rightColumn[i] || { tanggal: '-', status: '-', waktu_masuk: '-' };
-
-            if (i % 2 === 0) {
-              doc.rect(col1Left, rowTop - 5, 250, rowHeight).fill('#F5F6F5');
-              doc.rect(col1Right, rowTop - 5, 250, rowHeight).fill('#F5F6F5');
-            }
-
-            doc.fillColor('#000000')
-              .fontSize(12)
-              .text(leftColumn[i] ? `${i + 1}` : '', col1Left, rowTop, { align: 'left', width: 20 })
-              .text(left.tanggal, col2Left, rowTop, { align: 'left', width: 50 })
-              .text(left.waktu_masuk || '-', col3Left, rowTop, { align: 'center', width: 80 })
-              .text(left.status, col4Left, rowTop, { align: 'left', width: 80 })
-              .text(rightColumn[i] ? `${i + 16}` : '', col1Right, rowTop, { align: 'left', width: 20 })
-              .text(right.tanggal, col2Right, rowTop, { align: 'left', width: 50 })
-              .text(right.waktu_masuk || '-', col3Right, rowTop, { align: 'center', width: 80 })
-              .text(right.status, col4Right, rowTop, { align: 'left', width: 80 });
-
-            doc.moveDown(1);
-          }
-
-          // Summary
-          doc.moveDown(1);
-          doc.fontSize(12)
-            .fillColor('#000000')
-            .text(`Total Hadir: ${report.total_hadir}`, 40, doc.y)
-            .text(`Total Sakit: ${report.total_sakit}`, 40, doc.y + 15)
-            .text(`Total Izin: ${report.total_izin}`, 40, doc.y + 15);
-        });
-
-        doc.end();
-
-        return new Promise<NextResponse>((resolve) => {
-          doc.on('end', () => {
-            const pdfBuffer = Buffer.from(Buffer.concat(buffers));
-            resolve(
-              new NextResponse(pdfBuffer, {
-                status: 200,
-                headers: {
-                  ...corsHeaders(),
-                  'Content-Type': 'application/pdf',
-                  'Content-Disposition': print
-                    ? `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`
-                    : `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-                },
-              })
-            );
-          });
-        });
+    leftColumn.forEach((item: { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }, i: number) => {
+      if (currentY + rowHeight > 800) {
+        doc.addPage();
+        currentY = 40;
+        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+        doc.fontSize(12).fillColor('#000000')
+          .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
+          .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+          .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+          .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+          .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+        currentY += rowHeight;
       }
+
+      if (i % 2 === 0) {
+        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#F5F6F5');
+      }
+
+      doc.fillColor('#000000')
+        .text(`${i + 1}`, col1Left, currentY - 5, { align: 'left', width: 60 })
+        .text(item.tanggal, col2Left, currentY - 5, { align: 'left', width: 100 })
+        .text(item.waktu_masuk || '-', col3Left, currentY - 5, { align: 'center', width: 100 })
+        .text(item.waktu_pulang || '-', col4Left, currentY - 5, { align: 'center', width: 100 })
+        .text(item.status, col5Left, currentY - 5, { align: 'left', width: 150 });
+      currentY += rowHeight;
+    });
+
+    // Summary for First Page
+    if (currentY + 60 > 800) {
+      doc.addPage();
+      currentY = 40;
+    }
+    doc.fontSize(12).fillColor('#000000')
+      .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
+      .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 15)
+      .text(`Total Izin: ${report.total_izin}`, 40, currentY + 30);
+    currentY += 60;
+
+    // Second Page for Days 16-31
+    doc.addPage();
+
+    // Header for Second Page
+    if (fs.existsSync(logoPath)) {
+      doc.image(logoPath, 40, 30, { width: 60, height: 60, align: 'center', valign: 'center' });
+      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 110, 40, { align: 'center' });
+      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 110, 65, { align: 'center' });
+    } else {
+      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
+      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
+    }
+
+    doc.lineWidth(1).moveTo(40, 90).lineTo(550, 90).stroke();
+    doc.moveDown(2);
+
+    // Employee Info for Second Page
+    doc.fontSize(12).fillColor('#000000').text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
+    doc.text(`Bagian: Sales`, 40, doc.y + 15);
+    currentY = doc.y + 20;
+
+    // Table Headers for Second Page (Days 16-31)
+    doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+    doc.fontSize(12).fillColor('#000000')
+      .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
+      .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+      .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+      .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+      .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+    currentY += rowHeight;
+
+    // Data for Second Page (Days 16-31)
+    const rightColumn = report.detail.slice(15, 31);
+
+    rightColumn.forEach((item: { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }, i: number) => {
+      if (currentY + rowHeight > 800) {
+        doc.addPage();
+        currentY = 40;
+        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+        doc.fontSize(12).fillColor('#000000')
+          .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
+          .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+          .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+          .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+          .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+        currentY += rowHeight;
+      }
+
+      if (i % 2 === 0) {
+        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#F5F6F5');
+      }
+
+      doc.fillColor('#000000')
+        .text(`${i + 16}`, col1Left, currentY - 5, { align: 'left', width: 60 })
+        .text(item.tanggal, col2Left, currentY - 5, { align: 'left', width: 100 })
+        .text(item.waktu_masuk || '-', col3Left, currentY - 5, { align: 'center', width: 100 })
+        .text(item.waktu_pulang || '-', col4Left, currentY - 5, { align: 'center', width: 100 })
+        .text(item.status, col5Left, currentY - 5, { align: 'left', width: 150 });
+      currentY += rowHeight;
+    });
+
+    // Summary for Second Page
+    if (currentY + 60 > 800) {
+      doc.addPage();
+      currentY = 40;
+    }
+    doc.fontSize(12).fillColor('#000000')
+      .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
+      .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 15)
+      .text(`Total Izin: ${report.total_izin}`, 40, currentY + 30);
+  });
+
+  doc.end();
+
+  return new Promise<NextResponse>((resolve) => {
+    doc.on('end', () => {
+      const pdfBuffer = Buffer.from(Buffer.concat(buffers));
+      resolve(
+        new NextResponse(pdfBuffer, {
+          status: 200,
+          headers: {
+            ...corsHeaders(),
+            'Content-Type': 'application/pdf',
+            'Content-Disposition': print
+              ? `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`
+              : `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+          },
+        })
+      );
+    });
+  });
+}
 
       return NextResponse.json(scope === 'single' ? reportData[0] : reportData, { status: 200, headers: corsHeaders() });
     } catch (error) {

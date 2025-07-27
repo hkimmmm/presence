@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { toZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
 import { prisma } from '@/app/utils/prisma';
 import { Decimal } from '@prisma/client/runtime/library';
 
@@ -106,12 +108,16 @@ export async function POST(req: NextRequest) {
 
     const karyawan_id = auth.user.karyawan_id;
 
-    // Gunakan waktu WIB
+    // Dapatkan waktu saat ini di WIB
     const now = new Date();
-    const datetimeCheckin = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }));
-    const tanggalFormatted = datetimeCheckin.toISOString().split('T')[0]; // YYYY-MM-DD
+    const datetimeCheckin = toZonedTime(now, 'Asia/Jakarta');
+    const tanggalFormatted = format(datetimeCheckin, 'yyyy-MM-dd');
 
-    // Cek apakah sudah checkin hari ini dengan Prisma
+    // Log untuk debugging
+    console.log('datetimeCheckin:', datetimeCheckin.toISOString());
+    console.log('tanggalFormatted:', tanggalFormatted);
+
+    // Cek apakah sudah check-in hari ini
     const existingPresensi = await prisma.presensi.findFirst({
       where: {
         karyawan_id: karyawan_id,
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      // Get office location with Prisma
+      // Ambil lokasi kantor
       const kantor = await prisma.lokasi_kantor.findFirst();
       if (!kantor) {
         return new NextResponse(
@@ -177,14 +183,14 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Insert with Prisma
+    // Simpan ke database dengan Prisma
     const newPresensi = await prisma.presensi.create({
       data: {
         karyawan_id,
         tanggal: new Date(tanggalFormatted),
-        checkin_time: datetimeCheckin, // Gunakan objek Date
-        checkin_lat: validatedLat,
-        checkin_lng: validatedLng,
+        checkin_time: datetimeCheckin,
+        checkin_lat: validatedLat ? Number(validatedLat) : null,
+        checkin_lng: validatedLng ? Number(validatedLng) : null,
         status,
         keterangan,
         created_at: new Date(),

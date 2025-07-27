@@ -1,6 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import { NextRequest, NextResponse } from 'next/server';
 import jwt from 'jsonwebtoken';
+import { toZonedTime } from 'date-fns-tz';
+import { format } from 'date-fns';
 import { prisma } from '@/app/utils/prisma';
 
 const JWT_SECRET = process.env.JWT_SECRET || 'secret';
@@ -155,21 +157,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Use WIB time
-    const now = new Date().toLocaleString('en-CA', {
-      timeZone: 'Asia/Jakarta',
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-    }).replace(/(\d+)\/(\d+)\/(\d+),/, '$3-$1-$2');
-    const tanggalFormatted = now.split(' ')[0];
-    const datetimeCheckin = new Date(now);
+    // Dapatkan waktu saat ini di WIB
+    const now = new Date();
+    const datetimeCheckin = toZonedTime(now, 'Asia/Jakarta');
+    const tanggalFormatted = format(datetimeCheckin, 'yyyy-MM-dd');
 
-    // Check for existing presensi
+    // Log untuk debugging
+    console.log('datetimeCheckin:', datetimeCheckin.toISOString());
+    console.log('tanggalFormatted:', tanggalFormatted);
+
+    // Cek apakah sudah check-in hari ini
     const existingPresensi = await prisma.presensi.findFirst({
       where: {
         karyawan_id,
