@@ -377,206 +377,132 @@ export async function GET(req: NextRequest) {
             'Content-Disposition': `attachment; filename=Laporan_Absensi_${monthNames[bulan - 1]}_${tahun}.xlsx`,
           },
         });
-      }  else if (format === 'pdf') {
-  const fontPath = path.resolve('public/fonts/times.ttf');
-  const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
+      } else if (format === 'pdf') {
+        const fontPath = path.resolve('public/fonts/times.ttf');
+        const logoPath = path.resolve('public/images/citra_buana_cemerlang1.png');
 
-  console.log('Font path:', fontPath, 'exists:', fs.existsSync(fontPath));
-  console.log('Logo path:', logoPath, 'exists:', fs.existsSync(logoPath));
+        console.log('Font path:', fontPath, 'exists:', fs.existsSync(fontPath));
+        console.log('Logo path:', logoPath, 'exists:', fs.existsSync(logoPath));
 
-  if (!fs.existsSync(fontPath)) {
-    console.error(`File font tidak ditemukan di ${fontPath}`);
-    throw new Error(`File font tidak ditemukan di ${fontPath}`);
-  }
+        if (!fs.existsSync(fontPath)) {
+          console.error(`File font tidak ditemukan di ${fontPath}`);
+          throw new Error(`File font tidak ditemukan di ${fontPath}`);
+        }
 
-  const doc = new PDFDocument({
-    margin: 40,
-    font: fontPath,
-    size: 'A4',
-    info: { Title: 'Laporan Absensi CV Citra Buana Cemerlang' },
-  });
-  const buffers: Uint8Array[] = [];
+        const doc = new PDFDocument({
+          margin: 40,
+          font: fontPath,
+          size: 'A4',
+          info: { Title: 'Laporan Absensi CV Citra Buana Cemerlang' },
+        });
+        const buffers: Uint8Array[] = [];
 
-  doc.on('data', (chunk: Uint8Array) => buffers.push(chunk));
+        doc.on('data', (chunk: Uint8Array) => buffers.push(chunk));
 
-  try {
-    doc.registerFont('TimesNewRoman', fontPath);
-    doc.font('TimesNewRoman');
-  } catch (fontError) {
-    console.error('Gagal memuat font TimesNewRoman:', fontError);
-    throw new Error('Gagal memuat font TimesNewRoman');
-  }
+        try {
+          doc.registerFont('TimesNewRoman', fontPath);
+          doc.font('TimesNewRoman');
+        } catch (fontError) {
+          console.error('Gagal memuat font TimesNewRoman:', fontError);
+          throw new Error('Gagal memuat font TimesNewRoman');
+        }
 
-  reportData.forEach((report, index) => {
-    if (index > 0) {
-      doc.addPage();
-    }
+        reportData.forEach((report, index) => {
+          if (index > 0) {
+            doc.addPage();
+          }
 
-    // Header for First Page (Days 1-15)
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 40, 30, { width: 60, height: 60, align: 'center', valign: 'center' });
-      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 110, 40, { align: 'center' });
-      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 110, 65, { align: 'center' });
-    } else {
-      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
-      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
-    }
+          // Header
+          if (fs.existsSync(logoPath)) {
+            doc.image(logoPath, 40, 30, { width: 50, height: 50, align: 'center', valign: 'center' });
+            doc.fontSize(14).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 100, 35, { align: 'center' });
+            doc.fontSize(12).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 100, 55, { align: 'center' });
+          } else {
+            doc.fontSize(14).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
+            doc.fontSize(12).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
+          }
 
-    doc.lineWidth(1).moveTo(40, 90).lineTo(550, 90).stroke();
-    doc.moveDown(2);
+          doc.lineWidth(1).moveTo(40, 80).lineTo(550, 80).stroke();
+          doc.moveDown(1);
 
-    // Employee Info
-    doc.fontSize(12).fillColor('#000000').text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
-    doc.text(`Bagian: Sales`, 40, doc.y + 15);
-    let currentY = doc.y + 20;
+          // Employee Info
+          doc.fontSize(10).fillColor('#000000').text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
+          doc.text(`Bagian: Sales`, 40, doc.y + 10);
+          let currentY = doc.y + 15;
 
-    // Table Configuration for First Page (Days 1-15)
-    const col1Left = 40, col2Left = 100, col3Left = 200, col4Left = 300, col5Left = 400;
-    const rowHeight = 20;
+          // Table Configuration
+          const col1Left = 40, col2Left = 80, col3Left = 180, col4Left = 280, col5Left = 380;
+          const rowHeight = 16;
 
-    // Table Headers for First Page
-    doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
-    doc.fontSize(12).fillColor('#000000')
-      .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
-      .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
-      .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
-      .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
-      .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
-    currentY += rowHeight;
+          // Table Headers
+          doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+          doc.fontSize(10).fillColor('#000000')
+            .text('No', col1Left, currentY - 5, { align: 'left', width: 40 })
+            .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+            .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+            .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+            .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+          currentY += rowHeight;
 
-    // Data for First Page (Days 1-15)
-    const leftColumn = report.detail.slice(0, 15);
+          // Data for All Days (1-31)
+          report.detail.forEach((item: { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }, i: number) => {
+            if (currentY + rowHeight > 780) {
+              doc.addPage();
+              currentY = 40;
+              doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
+              doc.fontSize(10).fillColor('#000000')
+                .text('No', col1Left, currentY - 5, { align: 'left', width: 40 })
+                .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
+                .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
+                .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
+                .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
+              currentY += rowHeight;
+            }
 
-    leftColumn.forEach((item: { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }, i: number) => {
-      if (currentY + rowHeight > 800) {
-        doc.addPage();
-        currentY = 40;
-        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
-        doc.fontSize(12).fillColor('#000000')
-          .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
-          .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
-          .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
-          .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
-          .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
-        currentY += rowHeight;
+            if (i % 2 === 0) {
+              doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#F5F6F5');
+            }
+
+            doc.fillColor('#000000')
+              .text(`${i + 1}`, col1Left, currentY - 5, { align: 'left', width: 40 })
+              .text(item.tanggal, col2Left, currentY - 5, { align: 'left', width: 100 })
+              .text(item.waktu_masuk || '-', col3Left, currentY - 5, { align: 'center', width: 100 })
+              .text(item.waktu_pulang || '-', col4Left, currentY - 5, { align: 'center', width: 100 })
+              .text(item.status, col5Left, currentY - 5, { align: 'left', width: 150 });
+            currentY += rowHeight;
+          });
+
+          // Summary
+          if (currentY + 50 > 780) {
+            doc.addPage();
+            currentY = 40;
+          }
+          doc.fontSize(10).fillColor('#000000')
+            .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
+            .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 12)
+            .text(`Total Izin: ${report.total_izin}`, 40, currentY + 24);
+        });
+
+        doc.end();
+
+        return new Promise<NextResponse>((resolve) => {
+          doc.on('end', () => {
+            const pdfBuffer = Buffer.from(Buffer.concat(buffers));
+            resolve(
+              new NextResponse(pdfBuffer, {
+                status: 200,
+                headers: {
+                  ...corsHeaders(),
+                  'Content-Type': 'application/pdf',
+                  'Content-Disposition': print
+                    ? `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`
+                    : `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
+                },
+              })
+            );
+          });
+        });
       }
-
-      if (i % 2 === 0) {
-        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#F5F6F5');
-      }
-
-      doc.fillColor('#000000')
-        .text(`${i + 1}`, col1Left, currentY - 5, { align: 'left', width: 60 })
-        .text(item.tanggal, col2Left, currentY - 5, { align: 'left', width: 100 })
-        .text(item.waktu_masuk || '-', col3Left, currentY - 5, { align: 'center', width: 100 })
-        .text(item.waktu_pulang || '-', col4Left, currentY - 5, { align: 'center', width: 100 })
-        .text(item.status, col5Left, currentY - 5, { align: 'left', width: 150 });
-      currentY += rowHeight;
-    });
-
-    // Summary for First Page
-    if (currentY + 60 > 800) {
-      doc.addPage();
-      currentY = 40;
-    }
-    doc.fontSize(12).fillColor('#000000')
-      .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
-      .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 15)
-      .text(`Total Izin: ${report.total_izin}`, 40, currentY + 30);
-    currentY += 60;
-
-    // Second Page for Days 16-31
-    doc.addPage();
-
-    // Header for Second Page
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 40, 30, { width: 60, height: 60, align: 'center', valign: 'center' });
-      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 110, 40, { align: 'center' });
-      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 110, 65, { align: 'center' });
-    } else {
-      doc.fontSize(16).fillColor('#000000').text('CV CITRA BUANA CEMERLANG', 40, 30, { align: 'center' });
-      doc.fontSize(14).fillColor('#000000').text(`LAPORAN ABSENSI BULAN ${monthNames[bulan - 1].toUpperCase()} ${tahun}`, 40, 50, { align: 'center' });
-    }
-
-    doc.lineWidth(1).moveTo(40, 90).lineTo(550, 90).stroke();
-    doc.moveDown(2);
-
-    // Employee Info for Second Page
-    doc.fontSize(12).fillColor('#000000').text(`Nama: ${report.karyawan_nama || `ID: ${report.karyawan_id}`}`, 40, doc.y);
-    doc.text(`Bagian: Sales`, 40, doc.y + 15);
-    currentY = doc.y + 20;
-
-    // Table Headers for Second Page (Days 16-31)
-    doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
-    doc.fontSize(12).fillColor('#000000')
-      .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
-      .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
-      .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
-      .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
-      .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
-    currentY += rowHeight;
-
-    // Data for Second Page (Days 16-31)
-    const rightColumn = report.detail.slice(15, 31);
-
-    rightColumn.forEach((item: { tanggal: string; status: string; waktu_masuk?: string; waktu_pulang?: string }, i: number) => {
-      if (currentY + rowHeight > 800) {
-        doc.addPage();
-        currentY = 40;
-        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#D3D3D3');
-        doc.fontSize(12).fillColor('#000000')
-          .text('No', col1Left, currentY - 5, { align: 'left', width: 60 })
-          .text('Tanggal', col2Left, currentY - 5, { align: 'left', width: 100 })
-          .text('Waktu Masuk', col3Left, currentY - 5, { align: 'center', width: 100 })
-          .text('Waktu Pulang', col4Left, currentY - 5, { align: 'center', width: 100 })
-          .text('Status', col5Left, currentY - 5, { align: 'left', width: 150 });
-        currentY += rowHeight;
-      }
-
-      if (i % 2 === 0) {
-        doc.rect(col1Left, currentY - 5, 510, rowHeight).fill('#F5F6F5');
-      }
-
-      doc.fillColor('#000000')
-        .text(`${i + 16}`, col1Left, currentY - 5, { align: 'left', width: 60 })
-        .text(item.tanggal, col2Left, currentY - 5, { align: 'left', width: 100 })
-        .text(item.waktu_masuk || '-', col3Left, currentY - 5, { align: 'center', width: 100 })
-        .text(item.waktu_pulang || '-', col4Left, currentY - 5, { align: 'center', width: 100 })
-        .text(item.status, col5Left, currentY - 5, { align: 'left', width: 150 });
-      currentY += rowHeight;
-    });
-
-    // Summary for Second Page
-    if (currentY + 60 > 800) {
-      doc.addPage();
-      currentY = 40;
-    }
-    doc.fontSize(12).fillColor('#000000')
-      .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
-      .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 15)
-      .text(`Total Izin: ${report.total_izin}`, 40, currentY + 30);
-  });
-
-  doc.end();
-
-  return new Promise<NextResponse>((resolve) => {
-    doc.on('end', () => {
-      const pdfBuffer = Buffer.from(Buffer.concat(buffers));
-      resolve(
-        new NextResponse(pdfBuffer, {
-          status: 200,
-          headers: {
-            ...corsHeaders(),
-            'Content-Type': 'application/pdf',
-            'Content-Disposition': print
-              ? `inline; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`
-              : `attachment; filename=report_${monthNames[bulan - 1]}_${tahun}.pdf`,
-          },
-        })
-      );
-    });
-  });
-}
 
       return NextResponse.json(scope === 'single' ? reportData[0] : reportData, { status: 200, headers: corsHeaders() });
     } catch (error) {
