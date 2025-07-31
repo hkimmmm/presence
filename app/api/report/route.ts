@@ -481,6 +481,20 @@ export async function GET(req: NextRequest) {
             .text(`Total Hadir: ${report.total_hadir}`, 40, currentY)
             .text(`Total Sakit: ${report.total_sakit}`, 40, currentY + 12)
             .text(`Total Izin: ${report.total_izin}`, 40, currentY + 24);
+          currentY += 50;
+
+          // Signature Section
+          if (currentY + 60 > 780) {
+            doc.addPage();
+            currentY = 40;
+          }
+          const today = new Date();
+          const formattedDate = `${today.getDate()} ${monthNames[today.getMonth()]} ${today.getFullYear()}`;
+          doc.fontSize(10).fillColor('#000000')
+            .text(formattedDate, 430, currentY, { align: 'left' })
+            .text('Mengetahui,', 430, currentY + 10, { align: 'left' })
+            .text('Supervisor', 430, currentY + 20, { align: 'left' })
+            .text('Handayani', 430, currentY + 90, { align: 'left' });
         });
 
         doc.end();
